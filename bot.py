@@ -1,4 +1,5 @@
 import os
+import time
 import discord
 from discord import app_commands
 from dotenv import load_dotenv
@@ -9,6 +10,14 @@ load_dotenv()
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 DISCORD_BOT_APPLICATION_ID = int(os.environ["DISCORD_BOT_APPLICATION_ID"])
 DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
+BYPASS_USER_IDS = {
+    int(uid.strip())
+    for uid in os.getenv("DISCORD_BYPASS_USER_IDS", "").split(",")
+    if uid.strip()
+}
+
+COOLDOWN_SECONDS = 120
+_last_used: dict[int, float] = {}
 
 
 class DemeryBot(discord.Client):
@@ -48,6 +57,19 @@ async def taunt(
     intensity: app_commands.Choice[str] = None,
 ):
     intensity_value = intensity.value if intensity else "medium"
+
+    caller_id = interaction.user.id
+    if caller_id not in BYPASS_USER_IDS:
+        now = time.monotonic()
+        last = _last_used.get(caller_id, 0)
+        remaining = COOLDOWN_SECONDS - (now - last)
+        if remaining > 0:
+            await interaction.response.send_message(
+                f"Chill — you can taunt again in {int(remaining) + 1}s.", ephemeral=True
+            )
+            return
+        _last_used[caller_id] = now
+
     await interaction.response.defer()
     taunt_text = await generate_taunt(user.display_name, intensity_value)
     await interaction.followup.send(f"{user.mention} {taunt_text}")

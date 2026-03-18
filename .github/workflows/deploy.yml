@@ -22,7 +22,8 @@ jobs:
             DISCORD_BOT_TOKEN="${{ secrets.DISCORD_BOT_TOKEN }}" \
             ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" \
             DISCORD_BOT_APPLICATION_ID="${{ vars.DISCORD_BOT_APPLICATION_ID }}" \
-            DISCORD_GUILD_ID="${{ vars.DISCORD_GUILD_ID }}"
+            DISCORD_GUILD_ID="${{ vars.DISCORD_GUILD_ID }}" \
+            DISCORD_BYPASS_USER_IDS="${{ vars.DISCORD_BYPASS_USER_IDS }}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_AUTH_TOKEN }}
 
