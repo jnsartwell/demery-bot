@@ -46,7 +46,7 @@ class DemeryBot(discord.Client):
 client = DemeryBot()
 
 
-@client.tree.command(name="taunt", description="Have Demery roast someone's bracket picks")
+@client.tree.command(name="diss", description="Have Demery roast someone's bracket picks")
 @app_commands.describe(
     user="The victim",
     intensity="How hard to go (default: medium)",
