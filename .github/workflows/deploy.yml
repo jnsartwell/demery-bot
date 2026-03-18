@@ -1,0 +1,30 @@
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Set Fly.io secrets
+        run: |
+          flyctl secrets set \
+            DISCORD_BOT_TOKEN="${{ secrets.DISCORD_BOT_TOKEN }}" \
+            ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" \
+            DISCORD_BOT_APPLICATION_ID="${{ vars.DISCORD_BOT_APPLICATION_ID }}" \
+            DISCORD_GUILD_ID="${{ vars.DISCORD_GUILD_ID }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_AUTH_TOKEN }}
+
+      - name: Deploy
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_AUTH_TOKEN }}
