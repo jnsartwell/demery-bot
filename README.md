@@ -15,3 +15,5 @@ A Discord bot that generates March Madness trash talk via Claude, in the style o
 | `harsh` | scorched earth |
 
 Tag someone and let Demery handle the rest.
+
+Not sure what to do? Use `/disshelp` for a quick rundown — only you can see it.
