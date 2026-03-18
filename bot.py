@@ -80,4 +80,19 @@ async def taunt(
     await interaction.followup.send(f"{user.mention} {taunt_text}")
 
 
+@client.tree.command(name="disshelp", description="How to use Demery Bot")
+async def disshelp(interaction: discord.Interaction):
+    await interaction.response.send_message(
+        "**Demery Bot** — March Madness trash talk, powered by AI.\n\n"
+        "**`/diss @user [intensity]`**\n"
+        "Tag someone and Demery will roast their bracket picks.\n\n"
+        "**Intensity levels:**\n"
+        "- `mild` — light ribbing, almost affectionate\n"
+        "- `medium` — no mercy, full roast *(default)*\n"
+        "- `harsh` — scorched earth\n\n"
+        "There's a 2-minute cooldown between uses.",
+        ephemeral=True,
+    )
+
+
 client.run(DISCORD_BOT_TOKEN)
