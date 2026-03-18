@@ -9,7 +9,11 @@ load_dotenv()
 
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 DISCORD_BOT_APPLICATION_ID = int(os.environ["DISCORD_BOT_APPLICATION_ID"])
-DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
+DISCORD_GUILD_IDS = [
+    gid.strip()
+    for gid in os.getenv("DISCORD_GUILD_ID", "").split(",")
+    if gid.strip()
+]
 BYPASS_USER_IDS = {
     int(uid.strip())
     for uid in os.getenv("DISCORD_BYPASS_USER_IDS", "").split(",")
@@ -27,10 +31,11 @@ class DemeryBot(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
-        if DISCORD_GUILD_ID:
-            guild = discord.Object(id=int(DISCORD_GUILD_ID))
-            self.tree.copy_global_to(guild=guild)
-            await self.tree.sync(guild=guild)
+        if DISCORD_GUILD_IDS:
+            for gid in DISCORD_GUILD_IDS:
+                guild = discord.Object(id=int(gid))
+                self.tree.copy_global_to(guild=guild)
+                await self.tree.sync(guild=guild)
         else:
             await self.tree.sync()
 
