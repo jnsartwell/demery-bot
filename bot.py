@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 import time
 import traceback
 
@@ -60,10 +61,6 @@ class DemeryBot(discord.Client):
                 self.tree.copy_global_to(guild=guild)
                 synced = await self.tree.sync(guild=guild)
                 print(f"Synced {len(synced)} commands to guild {gid}")
-
-            # Clear stale global registrations (after guild sync so tree still has commands)
-            await self.tree.sync()  # pushes empty global set
-            print("Cleared stale global commands")
         else:
             synced = await self.tree.sync()
             print(f"Synced {len(synced)} commands globally")
@@ -279,13 +276,37 @@ async def disshelp(interaction: discord.Interaction):
 
 
 @client.tree.command(name="setchannel", description="Set the channel for daily bracket digest posts")
-@app_commands.describe(channel="The text channel where Demery will post daily results")
+@app_commands.describe(channel="Tag the text channel (e.g. #march-madness)")
 @app_commands.default_permissions(manage_channels=True)
-async def setchannel(interaction: discord.Interaction, channel: discord.TextChannel):
-    print(f"setchannel called: guild={interaction.guild_id} channel_id={channel.id} channel_name={channel.name}")
-    db.set_guild_channel(interaction.guild_id, channel.id)
+async def setchannel(interaction: discord.Interaction, channel: str):
+    # Accept channel mention (<#ID>), raw ID, or channel name
+    mention_match = re.match(r"<#(\d+)>", channel.strip())
+    if mention_match:
+        channel_id = int(mention_match.group(1))
+    elif channel.strip().isdigit():
+        channel_id = int(channel.strip())
+    else:
+        # Search by name in this guild
+        found = discord.utils.get(interaction.guild.text_channels, name=channel.strip().lstrip("#"))
+        if not found:
+            await interaction.response.send_message(
+                f"Couldn't find a text channel called `{channel}`. Try tagging it like #channel-name.",
+                ephemeral=True,
+            )
+            return
+        channel_id = found.id
+
+    target = interaction.guild.get_channel(channel_id)
+    if not target:
+        await interaction.response.send_message(
+            "I can't see that channel — make sure I have access to it.", ephemeral=True
+        )
+        return
+
+    print(f"setchannel called: guild={interaction.guild_id} channel_id={channel_id} channel_name={target.name}")
+    db.set_guild_channel(interaction.guild_id, channel_id)
     await interaction.response.send_message(
-        f"Got it — daily digests will post to {channel.mention}.", ephemeral=True
+        f"Got it — daily digests will post to <#{channel_id}>.", ephemeral=True
     )
 
 
