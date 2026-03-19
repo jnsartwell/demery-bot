@@ -25,7 +25,7 @@ BYPASS_USER_IDS = {
     for uid in os.getenv("DISCORD_BYPASS_USER_IDS", "").split(",")
     if uid.strip()
 }
-TAUNT_HOUR = int(os.getenv("TAUNT_HOUR", "12"))
+TAUNT_HOUR = int(os.getenv("TAUNT_HOUR") or "12")
 
 COOLDOWN_SECONDS = 120
 _last_used: dict[int, float] = {}
