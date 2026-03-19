@@ -55,6 +55,11 @@ class DemeryBot(discord.Client):
 
     async def setup_hook(self):
         if DISCORD_GUILD_IDS:
+            # Clear any stale global command registrations
+            self.tree.clear_commands(guild=None)
+            await self.tree.sync()
+            print("Cleared stale global commands")
+
             for gid in DISCORD_GUILD_IDS:
                 guild = discord.Object(id=int(gid))
                 self.tree.copy_global_to(guild=guild)
