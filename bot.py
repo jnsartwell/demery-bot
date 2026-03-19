@@ -264,7 +264,7 @@ async def disshelp(interaction: discord.Interaction):
 
 @client.tree.command(name="setchannel", description="Set the channel for daily bracket digest posts")
 @app_commands.describe(channel="The text channel where Demery will post daily results")
-@app_commands.default_permissions(manage_guild=True)
+@app_commands.default_permissions(manage_channels=True)
 async def setchannel(interaction: discord.Interaction, channel: discord.TextChannel):
     db.set_guild_channel(interaction.guild_id, channel.id)
     await interaction.response.send_message(
