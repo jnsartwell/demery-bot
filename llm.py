@@ -181,15 +181,23 @@ async def generate_digest(submitters: list[dict]) -> str:
             parts.append("No bracket activity today")
         lines.append(" | ".join(parts))
 
+    all_quiet = all(not s["busts"] and not s["survivors"] for s in submitters)
+    context = (
+        "No games were played today — brackets are untouched."
+        if all_quiet else
+        "Here's how everyone's bracket is looking after today's games."
+    )
     content = (
-        "Today's March Madness results are in. Here's how everyone's bracket did:\n\n"
+        f"{context} Bracket status:\n\n"
         + "\n".join(lines)
-        + "\n\nGive everyone a personalized Demery reaction in one flowing message. "
+        + "\n\nWrite a Demery-style daily bracket update. "
+        "Open with a fresh, varied line that fits the vibe — don't always start the same way. "
         "Mention each person by their Discord tag. "
         "For busts: roast them with context — if you had a team going to the championship "
         "and they lost in the Elite Eight, that's richer material than a generic loss. "
         "For survivors: sarcastically praise them like they don't deserve it. "
         "For anyone with no activity: give a backhanded 'somehow still intact' acknowledgement. "
+        "If no games were played, keep it short and pointed — acknowledge the calm before the storm. "
         "One or two punchy sentences per person. Address ALL submitters — no one gets skipped."
     )
     response = await client.messages.create(

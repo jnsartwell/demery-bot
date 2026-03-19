@@ -29,7 +29,8 @@ TAUNT_HOUR = int(os.getenv("TAUNT_HOUR") or "12")
 
 COOLDOWN_SECONDS = 120
 _last_used: dict[int, float] = {}
-_last_submit: dict[int, str] = {}  # user_id → YYYYMMDD
+_last_submit: dict[int, tuple[str, int]] = {}  # user_id → (YYYYMMDD, count)
+MAX_SUBMIT_PER_DAY = 3
 
 ROUND_TIER_ORDER = [
     "round_of_32", "sweet_16", "elite_eight",
@@ -207,12 +208,14 @@ async def taunt(
 async def submit_bracket(interaction: discord.Interaction, image: discord.Attachment):
     if interaction.user.id not in BYPASS_USER_IDS:
         today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
-        if _last_submit.get(interaction.user.id) == today:
+        last_date, count = _last_submit.get(interaction.user.id, ("", 0))
+        if last_date == today and count >= MAX_SUBMIT_PER_DAY:
             await interaction.response.send_message(
-                "You've already submitted your bracket today.", ephemeral=True
+                f"You've used all {MAX_SUBMIT_PER_DAY} submissions for today. Try again tomorrow.",
+                ephemeral=True,
             )
             return
-        _last_submit[interaction.user.id] = today
+        _last_submit[interaction.user.id] = (today, count + 1 if last_date == today else 1)
 
     await interaction.response.defer()
 
@@ -248,7 +251,8 @@ async def disshelp(interaction: discord.Interaction):
         "Tag someone and Demery will roast their bracket picks.\n"
         "If they've submitted a bracket, the roast gets specific.\n\n"
         "**`/submitbracket [image]`**\n"
-        "Upload a screenshot of your filled-out bracket so Demery knows your actual picks.\n\n"
+        "Upload a screenshot of your filled-out bracket so Demery knows your actual picks. "
+        "You get 3 submissions per day — use them to correct a bad parse or swap picks.\n\n"
         "**Intensity levels:**\n"
         "- `mild` — light ribbing, almost affectionate\n"
         "- `medium` — sharp but fun *(default)*\n"
