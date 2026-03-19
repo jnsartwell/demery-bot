@@ -8,16 +8,22 @@ DB_PATH = os.getenv("DB_PATH", "/data/brackets.db")
 MIGRATIONS_DIR = pathlib.Path(__file__).parent / "migrations"
 
 
-def _run_migrations(con: sqlite3.Connection):
+def _ensure_migrations_table(con: sqlite3.Connection):
     con.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
             filename TEXT PRIMARY KEY,
             applied_at TEXT NOT NULL
         )
     """)
+
+
+def _run_migrations(con: sqlite3.Connection):
+    _ensure_migrations_table(con)
     applied = {row[0] for row in con.execute("SELECT filename FROM schema_migrations").fetchall()}
 
     for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        if path.name.endswith(".down.sql"):
+            continue
         if path.name in applied:
             continue
         print(f"Running migration: {path.name}")
@@ -27,6 +33,36 @@ def _run_migrations(con: sqlite3.Connection):
             (path.name, datetime.now(timezone.utc).isoformat()),
         )
         con.commit()
+
+
+def rollback_migration(filename: str | None = None):
+    """Roll back the most recent migration, or a specific one by filename."""
+    with sqlite3.connect(DB_PATH) as con:
+        _ensure_migrations_table(con)
+        if filename:
+            row = con.execute(
+                "SELECT filename FROM schema_migrations WHERE filename = ?", (filename,)
+            ).fetchone()
+        else:
+            row = con.execute(
+                "SELECT filename FROM schema_migrations ORDER BY applied_at DESC LIMIT 1"
+            ).fetchone()
+
+        if not row:
+            print("No migrations to roll back")
+            return
+
+        migration_name = row[0]
+        down_path = MIGRATIONS_DIR / migration_name.replace(".sql", ".down.sql")
+        if not down_path.exists():
+            print(f"No down migration found: {down_path.name}")
+            return
+
+        print(f"Rolling back migration: {migration_name}")
+        con.executescript(down_path.read_text())
+        con.execute("DELETE FROM schema_migrations WHERE filename = ?", (migration_name,))
+        con.commit()
+        print(f"Rolled back: {migration_name}")
 
 
 def init_db():
