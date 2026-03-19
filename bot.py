@@ -29,6 +29,7 @@ TAUNT_HOUR = int(os.getenv("TAUNT_HOUR") or "12")
 
 COOLDOWN_SECONDS = 120
 _last_used: dict[int, float] = {}
+_last_submit: dict[int, str] = {}  # user_id → YYYYMMDD
 
 ROUND_TIER_ORDER = [
     "round_of_32", "sweet_16", "elite_eight",
@@ -208,8 +209,13 @@ async def taunt(
 @app_commands.describe(image="A screenshot of your filled-out bracket")
 async def submit_bracket(interaction: discord.Interaction, image: discord.Attachment):
     if interaction.user.id not in BYPASS_USER_IDS:
-        await interaction.response.send_message("Not open yet.", ephemeral=True)
-        return
+        today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
+        if _last_submit.get(interaction.user.id) == today:
+            await interaction.response.send_message(
+                "You've already submitted your bracket today.", ephemeral=True
+            )
+            return
+        _last_submit[interaction.user.id] = today
 
     await interaction.response.defer()
 
