@@ -26,7 +26,7 @@ ESPN_SCOREBOARD_API = (
 def parse_entry_id(url: str) -> str | None:
     parsed = urlparse(url)
     params = parse_qs(parsed.query)
-    for key in ("entryID", "entryId", "entryid"):
+    for key in ("entryID", "entryId", "entryid", "id"):
         if key in params:
             return params[key][0]
     return None
