@@ -256,16 +256,15 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
     ack = await generate_submission_ack(interaction.user.display_name, picks)
     await interaction.followup.send(f"{interaction.user.mention} {ack}")
 
-    if interaction.user.id in BYPASS_USER_IDS:
-        lines = [
+    lines = [
             f"**Champion:** {picks['champion']}",
             f"**Championship:** {', '.join(picks['championship_game'])}",
             f"**Final Four:** {', '.join(picks['final_four'])}",
             f"**Elite Eight:** {', '.join(picks['elite_eight'])}",
             f"**Sweet 16:** {', '.join(picks['sweet_16'])}",
             f"**Round of 32:** {', '.join(picks['round_of_32'])}",
-        ]
-        await interaction.followup.send("\n".join(lines), ephemeral=True)
+    ]
+    await interaction.followup.send("\n".join(lines), ephemeral=True)
 
 
 @client.tree.command(name="disshelp", description="How to use Demery Bot")
