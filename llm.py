@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 
 import aiohttp
 import anthropic
@@ -141,15 +142,24 @@ If you cannot read the bracket clearly or any round is missing, respond with onl
     print(f"parse_bracket_image raw response ({len(raw)} chars): {raw[:200]}")
 
     # Try to extract JSON from markdown code fences or surrounding text
-    import re as _re
-    fence_match = _re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, _re.DOTALL)
+    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
     if fence_match:
         raw = fence_match.group(1).strip()
     elif not raw.startswith("{"):
-        # Try to find a JSON object anywhere in the response
-        brace_match = _re.search(r"\{.*\}", raw, _re.DOTALL)
-        if brace_match:
-            raw = brace_match.group(0).strip()
+        # Find the outermost balanced JSON object using non-greedy match
+        # by looking for the last } that forms valid JSON with the first {
+        start = raw.find("{")
+        if start != -1:
+            raw = raw[start:]
+            # Trim trailing non-JSON text by trying progressively shorter substrings
+            for end in range(len(raw), 0, -1):
+                if raw[end - 1] == "}":
+                    try:
+                        json.loads(raw[:end])
+                        raw = raw[:end]
+                        break
+                    except json.JSONDecodeError:
+                        continue
 
     try:
         picks = json.loads(raw)
@@ -168,6 +178,75 @@ If you cannot read the bracket clearly or any round is missing, respond with onl
         raise ValueError(f"Bracket picks missing rounds: {missing}")
 
     return picks
+
+
+async def normalize_team_names(picks: dict, espn_names: list[str]) -> dict:
+    """
+    Normalize team names in picks to match ESPN's exact displayName values.
+    Uses Haiku to resolve abbreviations, nicknames, and minor differences.
+    """
+    if not espn_names:
+        return picks
+
+    all_pick_names = []
+    for key in ["round_of_32", "sweet_16", "elite_eight", "final_four", "championship_game"]:
+        all_pick_names.extend(picks.get(key, []))
+    if picks.get("champion"):
+        all_pick_names.append(picks["champion"])
+    unique_picks = list(set(all_pick_names))
+
+    prompt = f"""\
+Match each team name from a user's bracket picks to the closest ESPN official team name.
+
+ESPN official names:
+{json.dumps(sorted(espn_names))}
+
+User's bracket names:
+{json.dumps(unique_picks)}
+
+Return a JSON object mapping each user name to the correct ESPN name.
+If a user name already exactly matches an ESPN name, include it unchanged.
+If a user name has no plausible ESPN match, keep the original.
+
+RESPOND WITH ONLY RAW JSON. No markdown, no explanation.
+Example: {{"Duke": "Duke Blue Devils", "UConn Huskies": "Connecticut Huskies"}}"""
+
+    response = await client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1500,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    raw = response.content[0].text.strip()
+    # Strip markdown fences if present
+    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+    if fence_match:
+        raw = fence_match.group(1).strip()
+
+    try:
+        name_map = json.loads(raw)
+    except json.JSONDecodeError:
+        print(f"normalize_team_names: failed to parse response, skipping. Raw: {raw[:200]}")
+        return picks
+
+    if not isinstance(name_map, dict):
+        print(f"normalize_team_names: expected dict, got {type(name_map).__name__}, skipping")
+        return picks
+
+    def _replace(name):
+        val = name_map.get(name, name)
+        return val if isinstance(val, str) else name  # guard against non-string values
+
+    normalized = {}
+    for key in ["round_of_32", "sweet_16", "elite_eight", "final_four", "championship_game"]:
+        normalized[key] = [_replace(t) for t in picks.get(key, [])]
+    normalized["champion"] = _replace(picks.get("champion", ""))
+
+    changed = {k: v for k, v in name_map.items() if k != v and isinstance(v, str)}
+    if changed:
+        print(f"normalize_team_names: corrected {len(changed)} names: {changed}")
+
+    return normalized
 
 
 async def generate_digest(submitters: list[dict]) -> str:

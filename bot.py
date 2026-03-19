@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 import db
 import espn
-from llm import generate_digest, generate_submission_ack, generate_taunt, parse_bracket_image
+from llm import generate_digest, generate_submission_ack, generate_taunt, normalize_team_names, parse_bracket_image
 
 load_dotenv()
 
@@ -39,12 +39,18 @@ ROUND_TIER_ORDER = [
     "final_four", "championship_game", "champion",
 ]
 ROUND_NAME_TO_TIER = {
-    "First Round":  "round_of_32",
-    "Second Round": "sweet_16",
-    "Sweet 16":     "elite_eight",
-    "Elite Eight":  "final_four",
-    "Final Four":   "championship_game",
-    "Championship": "champion",
+    # ESPN headline format (notes[0].headline) — verified against 2025 tournament data
+    "1st Round":              "round_of_32",
+    "2nd Round":              "sweet_16",
+    "Sweet 16":               "elite_eight",
+    "Elite 8":                "final_four",
+    "Final Four":             "championship_game",
+    "National Championship":  "champion",
+    # Alternate forms — keep as fallback
+    "First Round":            "round_of_32",
+    "Second Round":           "sweet_16",
+    "Elite Eight":            "final_four",
+    "Championship":           "champion",
 }
 
 
@@ -260,6 +266,14 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
             f"Couldn't read your bracket from that image: {e}", ephemeral=True
         )
         return
+
+    # Normalize team names to match ESPN's exact displayName format
+    try:
+        espn_names = await espn.fetch_tournament_team_names()
+        if espn_names:
+            picks = await normalize_team_names(picks, espn_names)
+    except Exception as e:
+        print(f"Team name normalization failed, saving raw picks: {e}")
 
     db.upsert_bracket(interaction.user.id, interaction.guild_id, interaction.user.display_name, picks)
     ack = await generate_submission_ack(interaction.user.display_name, picks)

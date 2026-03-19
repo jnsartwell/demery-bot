@@ -14,6 +14,41 @@ async def _get_json(
         return await resp.json(content_type=None)
 
 
+_cached_team_names: list[str] = []
+
+
+async def fetch_tournament_team_names() -> list[str]:
+    """
+    Fetch all team displayNames from the tournament by scanning scoreboard
+    data from the First Four through First Round (all 64+ teams appear).
+    Results are cached in memory for the lifetime of the process.
+    """
+    global _cached_team_names
+    if _cached_team_names:
+        return _cached_team_names
+
+    # 2026 NCAA Tournament First Round dates — all 64 teams play these two days
+    FIRST_ROUND_DATES = ["20260319", "20260320"]
+
+    teams = set()
+    async with aiohttp.ClientSession() as session:
+        for date_str in FIRST_ROUND_DATES:
+            try:
+                data = await _get_json(session, ESPN_SCOREBOARD_API, {"dates": date_str})
+            except Exception:
+                continue
+            for event in data.get("events", []):
+                for comp in event.get("competitions", []):
+                    for c in comp.get("competitors", []):
+                        name = c.get("team", {}).get("displayName")
+                        if name:
+                            teams.add(name)
+
+    _cached_team_names = sorted(teams)
+    print(f"Cached {len(_cached_team_names)} ESPN tournament team names")
+    return _cached_team_names
+
+
 async def fetch_today_results(date_str: str) -> list[dict]:
     """
     Fetch completed games for *date_str* (YYYYMMDD).
@@ -32,11 +67,19 @@ async def fetch_today_results(date_str: str) -> list[dict]:
         loser = next((c for c in competitors if not c.get("winner")), None)
         if not winner or not loser:
             continue
+        # Round name: prefer notes headline, fall back to type.text
+        # ESPN headline format: "NCAA Men's Basketball Championship - East Region - 1st Round"
+        notes = competition.get("notes", [])
+        headline = notes[0].get("headline", "") if notes else ""
+        round_name = headline.rsplit(" - ", 1)[-1] if " - " in headline else ""
+        if not round_name:
+            round_name = competition.get("type", {}).get("text", "tournament")
+
         results.append(
             {
                 "winner": winner["team"]["displayName"],
                 "loser": loser["team"]["displayName"],
-                "round": competition.get("type", {}).get("text", "tournament"),
+                "round": round_name,
             }
         )
     return results
