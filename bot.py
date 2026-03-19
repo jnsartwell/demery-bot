@@ -61,6 +61,11 @@ class DemeryBot(discord.Client):
                 self.tree.copy_global_to(guild=guild)
                 synced = await self.tree.sync(guild=guild)
                 print(f"Synced {len(synced)} commands to guild {gid}")
+
+            # Remove stale global registrations (guild syncs already done above)
+            self.tree.clear_commands(guild=None)
+            await self.tree.sync()
+            print("Cleared stale global commands")
         else:
             synced = await self.tree.sync()
             print(f"Synced {len(synced)} commands globally")
