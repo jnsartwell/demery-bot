@@ -3,6 +3,10 @@ primary_region = "iad"
 
 [build]
 
+[[mounts]]
+  source      = "brackets_data"
+  destination = "/data"
+
 [[vm]]
   memory = "256mb"
   cpu_kind = "shared"

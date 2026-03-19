@@ -39,3 +39,15 @@ The workflow creates the Fly.io app on first run, syncs all secrets/vars, and de
 | `FLY_AUTH_TOKEN` | Secret |
 | `DISCORD_BOT_APPLICATION_ID` | Variable |
 | `DISCORD_GUILD_ID` | Variable (comma-separated for multiple servers) |
+| `DISCORD_BYPASS_USER_IDS` | Variable (comma-separated; exempt from cooldown + can use `/testdigest`) |
+| `TAUNT_HOUR` | Variable (UTC hour 0–23 to post digest; default `21`) |
+
+### First-Time Fly.io Setup
+
+Before the first deploy, create the persistent volume for SQLite:
+
+```bash
+flyctl volumes create brackets_data --region iad --size 1
+```
+
+Only needs to be done once. The volume is mounted at `/data` and persists across deploys.
