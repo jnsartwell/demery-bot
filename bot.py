@@ -187,8 +187,9 @@ async def _run_digest(force: bool = False, guild_id: int | None = None) -> str |
 async def daily_digest_task():
     try:
         await _run_digest()
-    except Exception as e:
-        print(f"Digest error: {e}")
+    except Exception:
+        print("Digest error:")
+        traceback.print_exc()
 
 
 @daily_digest_task.before_loop
@@ -265,12 +266,12 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
     await interaction.followup.send(f"{interaction.user.mention} {ack}")
 
     lines = [
-            f"**Champion:** {picks['champion']}",
-            f"**Championship:** {', '.join(picks['championship_game'])}",
-            f"**Final Four:** {', '.join(picks['final_four'])}",
-            f"**Elite Eight:** {', '.join(picks['elite_eight'])}",
-            f"**Sweet 16:** {', '.join(picks['sweet_16'])}",
-            f"**Round of 32:** {', '.join(picks['round_of_32'])}",
+        f"**Champion:** {picks['champion']}",
+        f"**Championship:** {', '.join(picks['championship_game'])}",
+        f"**Final Four:** {', '.join(picks['final_four'])}",
+        f"**Elite Eight:** {', '.join(picks['elite_eight'])}",
+        f"**Sweet 16:** {', '.join(picks['sweet_16'])}",
+        f"**Round of 32:** {', '.join(picks['round_of_32'])}",
     ]
     await interaction.followup.send("\n".join(lines), ephemeral=True)
 
