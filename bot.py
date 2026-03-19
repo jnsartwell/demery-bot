@@ -211,7 +211,7 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
         await interaction.response.send_message("Not open yet.", ephemeral=True)
         return
 
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer()
 
     try:
         picks = await parse_bracket_image(image.url)
@@ -223,7 +223,7 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
 
     db.upsert_bracket(interaction.user.id, interaction.user.display_name, picks)
     ack = await generate_submission_ack(interaction.user.display_name, picks)
-    await interaction.followup.send(ack, ephemeral=True)
+    await interaction.followup.send(f"{interaction.user.mention} {ack}")
 
 
 @client.tree.command(name="disshelp", description="How to use Demery Bot")
