@@ -21,10 +21,10 @@ Not sure what to do? Use `/disshelp` for a quick rundown — only you can see it
 ## Bracket Picks
 
 ```
-/submitbracket [espn_url]
+/submitbracket [image]
 ```
 
-Paste your ESPN Tournament Challenge bracket URL and Demery will remember your picks. Future `/diss` roasts will call out your actual bracket choices by name.
+Upload a screenshot of your filled-out bracket and Demery will remember your picks. Future `/diss` roasts will call out your actual bracket choices by name.
 
 ## Server Setup
 

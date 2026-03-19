@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 import db
 import espn
-from llm import generate_digest, generate_submission_ack, generate_taunt
+from llm import generate_digest, generate_submission_ack, generate_taunt, parse_bracket_image
 
 load_dotenv()
 
@@ -29,6 +29,19 @@ TAUNT_HOUR = int(os.getenv("TAUNT_HOUR") or "12")
 
 COOLDOWN_SECONDS = 120
 _last_used: dict[int, float] = {}
+
+ROUND_TIER_ORDER = [
+    "round_of_32", "sweet_16", "elite_eight",
+    "final_four", "championship_game", "champion",
+]
+ROUND_NAME_TO_TIER = {
+    "First Round":  "round_of_32",
+    "Second Round": "sweet_16",
+    "Sweet 16":     "elite_eight",
+    "Elite Eight":  "final_four",
+    "Final Four":   "championship_game",
+    "Championship": "champion",
+}
 
 
 class DemeryBot(discord.Client):
@@ -58,14 +71,6 @@ client = DemeryBot()
 
 # --- digest helpers ---
 
-def _all_bracket_teams(picks: dict) -> set[str]:
-    teams: set[str] = set()
-    for key in ("champion", "championship_game", "final_four", "elite_eight"):
-        val = picks.get(key, [])
-        teams.update([val] if isinstance(val, str) else val)
-    return teams
-
-
 async def _run_digest(force: bool = False) -> str | None:
     """
     Core digest logic. Posts to every configured guild channel.
@@ -90,26 +95,43 @@ async def _run_digest(force: bool = False) -> str | None:
     all_brackets = db.get_all_brackets()
     submitters = []
     for entry in all_brackets:
-        bracket_teams = _all_bracket_teams(entry["picks"])
-        wins = [
-            f"{g['winner']} advances"
-            for g in games
-            if g["winner"] in bracket_teams
-        ]
-        losses = [
-            f"{g['loser']} eliminated"
-            for g in games
-            if g["loser"] in bracket_teams
-        ]
-        if wins or losses:
-            submitters.append(
-                {
-                    "mention": f"<@{entry['discord_user_id']}>",
-                    "name": entry["display_name"],
-                    "wins": wins,
-                    "losses": losses,
-                }
-            )
+        picks = entry["picks"]
+        busts, survivors = [], []
+        for game in games:
+            tier = ROUND_NAME_TO_TIER.get(game["round"])
+            if not tier:
+                continue  # play-in or unrecognized round — skip
+            idx = ROUND_TIER_ORDER.index(tier)
+            tiers_at_or_beyond = ROUND_TIER_ORDER[idx:]
+            # collect all teams user picked to survive this round or further
+            picked_teams = set()
+            for t in tiers_at_or_beyond:
+                val = picks.get(t, [])
+                picked_teams.update([val] if isinstance(val, str) else val)
+            if game["loser"] in picked_teams:
+                # find furthest tier they had the loser reaching
+                furthest = next(
+                    (t for t in reversed(ROUND_TIER_ORDER) if game["loser"] in (
+                        [picks[t]] if isinstance(picks.get(t), str) else picks.get(t, [])
+                    )),
+                    tier,
+                )
+                busts.append({
+                    "team": game["loser"],
+                    "picked_to_reach": furthest,
+                    "lost_in": game["round"],
+                })
+            if game["winner"] in picked_teams:
+                survivors.append({
+                    "team": game["winner"],
+                    "still_alive_through": game["round"],
+                })
+        submitters.append({
+            "mention": f"<@{entry['discord_user_id']}>",
+            "name": entry["display_name"],
+            "busts": busts,
+            "survivors": survivors,
+        })
 
     if not submitters:
         return None
@@ -181,26 +203,21 @@ async def taunt(
 
 @client.tree.command(
     name="submitbracket",
-    description="Submit your ESPN bracket so Demery knows your actual picks",
+    description="Upload a screenshot of your bracket so Demery knows your picks",
 )
-@app_commands.describe(espn_url="Your ESPN Tournament Challenge bracket URL")
-async def submit_bracket(interaction: discord.Interaction, espn_url: str):
-    await interaction.response.defer(ephemeral=True)
-
-    entry_id = espn.parse_entry_id(espn_url)
-    if not entry_id:
-        await interaction.followup.send(
-            "Couldn't find an entry ID in that URL. "
-            "Make sure you're pasting your ESPN Tournament Challenge bracket URL.",
-            ephemeral=True,
-        )
+@app_commands.describe(image="A screenshot of your filled-out bracket")
+async def submit_bracket(interaction: discord.Interaction, image: discord.Attachment):
+    if interaction.user.id not in BYPASS_USER_IDS:
+        await interaction.response.send_message("Not open yet.", ephemeral=True)
         return
 
+    await interaction.response.defer(ephemeral=True)
+
     try:
-        picks = await espn.fetch_bracket(entry_id)
-    except Exception as e:
+        picks = await parse_bracket_image(image.url)
+    except ValueError as e:
         await interaction.followup.send(
-            f"Couldn't fetch your bracket from ESPN: {e}", ephemeral=True
+            f"Couldn't read your bracket from that image: {e}", ephemeral=True
         )
         return
 
@@ -216,8 +233,8 @@ async def disshelp(interaction: discord.Interaction):
         "**`/diss @user [intensity]`**\n"
         "Tag someone and Demery will roast their bracket picks.\n"
         "If they've submitted a bracket, the roast gets specific.\n\n"
-        "**`/submitbracket [espn_url]`**\n"
-        "Paste your ESPN Tournament Challenge bracket URL so Demery knows your actual picks.\n\n"
+        "**`/submitbracket [image]`**\n"
+        "Upload a screenshot of your filled-out bracket so Demery knows your actual picks.\n\n"
         "**Intensity levels:**\n"
         "- `mild` — light ribbing, almost affectionate\n"
         "- `medium` — sharp but fun *(default)*\n"

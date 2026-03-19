@@ -1,3 +1,7 @@
+import base64
+import json
+
+import aiohttp
 import anthropic
 
 client = anthropic.AsyncAnthropic()
@@ -71,18 +75,110 @@ async def generate_submission_ack(display_name: str, picks: dict) -> str:
     return response.content[0].text
 
 
+async def parse_bracket_image(image_url: str) -> dict:
+    """
+    Fetch image from Discord CDN and use Claude Vision to extract bracket picks.
+    Returns picks dict with keys: round_of_32, sweet_16, elite_eight, final_four,
+    championship_game (lists), and champion (string).
+    Raises ValueError if image is unreadable or picks are incomplete.
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.get(image_url) as resp:
+            resp.raise_for_status()
+            image_bytes = await resp.read()
+            content_type = resp.content_type or "image/png"
+
+    image_b64 = base64.standard_b64encode(image_bytes).decode()
+
+    prompt = """\
+This is a March Madness bracket image. Extract all picks by round and return them as JSON.
+
+Use full ESPN display names (e.g. "Duke Blue Devils", "Arizona Wildcats", "UConn Huskies").
+
+Return ONLY valid JSON in exactly this format:
+{
+  "round_of_32": ["<32 team names — teams that won the First Round>"],
+  "sweet_16": ["<16 team names — teams that won the Second Round>"],
+  "elite_eight": ["<8 team names — teams that won the Sweet 16>"],
+  "final_four": ["<4 team names — teams that won the Elite Eight>"],
+  "championship_game": ["<2 team names — teams that won the Final Four>"],
+  "champion": "<1 team name — winner of the Championship>"
+}
+
+If you cannot read the bracket clearly or any round is missing, return:
+{"error": "reason the bracket could not be parsed"}"""
+
+    response = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1000,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": content_type,
+                            "data": image_b64,
+                        },
+                    },
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ],
+    )
+
+    raw = response.content[0].text.strip()
+    # Strip markdown code fences if present
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+
+    try:
+        picks = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Could not parse bracket JSON from image: {e}") from e
+
+    if "error" in picks:
+        raise ValueError(f"Claude could not read bracket: {picks['error']}")
+
+    required_keys = {
+        "round_of_32", "sweet_16", "elite_eight",
+        "final_four", "championship_game", "champion",
+    }
+    missing = required_keys - picks.keys()
+    if missing:
+        raise ValueError(f"Bracket picks missing rounds: {missing}")
+
+    return picks
+
+
 async def generate_digest(submitters: list[dict]) -> str:
     """
-    submitters: [{mention, name, wins: [...], losses: [...]}]
+    submitters: [{mention, name, busts: [{team, picked_to_reach, lost_in}],
+                  survivors: [{team, still_alive_through}]}]
     Returns a single message roasting/praising everyone.
     """
     lines = []
     for s in submitters:
         parts = [f"{s['mention']} ({s['name']})"]
-        if s["wins"]:
-            parts.append("Correct: " + "; ".join(s["wins"]))
-        if s["losses"]:
-            parts.append("Busted: " + "; ".join(s["losses"]))
+        if s["busts"]:
+            bust_strs = [
+                f"{b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})"
+                for b in s["busts"]
+            ]
+            parts.append("Busts: " + "; ".join(bust_strs))
+        if s["survivors"]:
+            survivor_strs = [
+                f"{sv['team']} (still alive through {sv['still_alive_through']})"
+                for sv in s["survivors"]
+            ]
+            parts.append("Survivors: " + "; ".join(survivor_strs))
+        if not s["busts"] and not s["survivors"]:
+            parts.append("No bracket activity today")
         lines.append(" | ".join(parts))
 
     content = (
@@ -90,8 +186,11 @@ async def generate_digest(submitters: list[dict]) -> str:
         + "\n".join(lines)
         + "\n\nGive everyone a personalized Demery reaction in one flowing message. "
         "Mention each person by their Discord tag. "
-        "Correct picks get sarcastic backhanded praise. Wrong picks get roasted. "
-        "One or two punchy sentences per person."
+        "For busts: roast them with context — if you had a team going to the championship "
+        "and they lost in the Elite Eight, that's richer material than a generic loss. "
+        "For survivors: sarcastically praise them like they don't deserve it. "
+        "For anyone with no activity: give a backhanded 'somehow still intact' acknowledgement. "
+        "One or two punchy sentences per person. Address ALL submitters — no one gets skipped."
     )
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
