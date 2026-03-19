@@ -90,9 +90,6 @@ async def _run_digest(force: bool = False) -> str | None:
         return None  # already posted today
 
     games = await espn.fetch_today_results(today)
-    if not games:
-        return None  # no completed games today
-
     all_brackets = db.get_all_brackets()
     submitters = []
     for entry in all_brackets:
