@@ -72,6 +72,13 @@ class DemeryBot(discord.Client):
 
     async def on_ready(self):
         print(f"Logged in as {self.user} (ID: {self.user.id})")
+        for guild in self.guilds:
+            me = guild.me
+            perms = me.guild_permissions
+            print(f"Guild '{guild.name}' ({guild.id}): "
+                  f"view_channel={perms.view_channel} send_messages={perms.send_messages} "
+                  f"roles=[{', '.join(r.name for r in me.roles)}] "
+                  f"text_channels_visible={len(guild.text_channels)}")
         db.init_db()
         if not daily_digest_task.is_running():
             daily_digest_task.start()
@@ -313,6 +320,28 @@ async def setchannel(interaction: discord.Interaction, channel: str):
     await interaction.response.send_message(
         f"Got it — daily digests will post to <#{channel_id}>.", ephemeral=True
     )
+
+
+@client.tree.command(name="debugguild", description="[Dev] Show what the bot can see in this guild")
+async def debugguild(interaction: discord.Interaction):
+    if interaction.user.id not in BYPASS_USER_IDS:
+        await interaction.response.send_message("Not for you.", ephemeral=True)
+        return
+
+    guild = interaction.guild
+    bot_member = guild.me
+    lines = [
+        f"**Guild:** {guild.name} (`{guild.id}`)",
+        f"**Bot permissions:** {bot_member.guild_permissions.value}",
+        f"**View Channels:** {bot_member.guild_permissions.view_channel}",
+        f"**Send Messages:** {bot_member.guild_permissions.send_messages}",
+        f"**Bot roles:** {', '.join(r.name for r in bot_member.roles)}",
+        f"**Text channels visible ({len(guild.text_channels)}):**",
+    ]
+    for ch in guild.text_channels[:20]:
+        perms = ch.permissions_for(bot_member)
+        lines.append(f"- #{ch.name} (`{ch.id}`) view={perms.view_channel} send={perms.send_messages}")
+    await interaction.response.send_message("\n".join(lines), ephemeral=True)
 
 
 @client.tree.command(name="testdigest", description="[Dev] Trigger the daily digest now")
