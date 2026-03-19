@@ -91,21 +91,29 @@ async def parse_bracket_image(image_url: str) -> dict:
     image_b64 = base64.standard_b64encode(image_bytes).decode()
 
     prompt = """\
-This is a March Madness bracket image. Extract all picks by round and return them as JSON.
+This is a March Madness bracket image. Extract the user's PICKS for each round.
+
+IMPORTANT CONTEXT:
+- This may be a screenshot from ESPN, Yahoo, CBS, or any other bracket provider, taken mid-tournament.
+- Different apps use different visual indicators for results: green circles, checkmarks, highlights for correct picks; red X marks, strikethroughs, grayed-out or faded names for wrong picks. Ignore all of these indicators.
+- We want the user's ORIGINAL PICKS, not actual results. Extract every team they picked to advance in each round, whether that pick was correct or not.
+- Eliminated or busted picks may appear faded, crossed out, or marked wrong — extract them anyway.
 
 Use full ESPN display names (e.g. "Duke Blue Devils", "Arizona Wildcats", "UConn Huskies").
 
-Return ONLY valid JSON in exactly this format:
+RESPOND WITH ONLY RAW JSON. No markdown, no code fences, no explanation, no text before or after.
+Your entire response must be valid JSON and nothing else.
+
 {
-  "round_of_32": ["<32 team names — teams that won the First Round>"],
-  "sweet_16": ["<16 team names — teams that won the Second Round>"],
-  "elite_eight": ["<8 team names — teams that won the Sweet 16>"],
-  "final_four": ["<4 team names — teams that won the Elite Eight>"],
-  "championship_game": ["<2 team names — teams that won the Final Four>"],
-  "champion": "<1 team name — winner of the Championship>"
+  "round_of_32": ["<32 team names — teams picked to win the First Round>"],
+  "sweet_16": ["<16 team names — teams picked to win the Second Round>"],
+  "elite_eight": ["<8 team names — teams picked to win the Sweet 16>"],
+  "final_four": ["<4 team names — teams picked to win the Elite Eight>"],
+  "championship_game": ["<2 team names — teams picked to win the Final Four>"],
+  "champion": "<1 team name — picked to win the Championship>"
 }
 
-If you cannot read the bracket clearly or any round is missing, return:
+If you cannot read the bracket clearly or any round is missing, respond with only:
 {"error": "reason the bracket could not be parsed"}"""
 
     response = await client.messages.create(
@@ -130,12 +138,18 @@ If you cannot read the bracket clearly or any round is missing, return:
     )
 
     raw = response.content[0].text.strip()
-    # Strip markdown code fences if present
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-        raw = raw.strip()
+    print(f"parse_bracket_image raw response ({len(raw)} chars): {raw[:200]}")
+
+    # Try to extract JSON from markdown code fences or surrounding text
+    import re as _re
+    fence_match = _re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, _re.DOTALL)
+    if fence_match:
+        raw = fence_match.group(1).strip()
+    elif not raw.startswith("{"):
+        # Try to find a JSON object anywhere in the response
+        brace_match = _re.search(r"\{.*\}", raw, _re.DOTALL)
+        if brace_match:
+            raw = brace_match.group(0).strip()
 
     try:
         picks = json.loads(raw)
