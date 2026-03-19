@@ -1,6 +1,7 @@
 import datetime
 import os
 import time
+import traceback
 
 import discord
 from discord import app_commands
@@ -57,9 +58,11 @@ class DemeryBot(discord.Client):
             for gid in DISCORD_GUILD_IDS:
                 guild = discord.Object(id=int(gid))
                 self.tree.copy_global_to(guild=guild)
-                await self.tree.sync(guild=guild)
+                synced = await self.tree.sync(guild=guild)
+                print(f"Synced {len(synced)} commands to guild {gid}")
         else:
-            await self.tree.sync()
+            synced = await self.tree.sync()
+            print(f"Synced {len(synced)} commands globally")
 
     async def on_ready(self):
         print(f"Logged in as {self.user} (ID: {self.user.id})")
@@ -67,8 +70,17 @@ class DemeryBot(discord.Client):
         if not daily_digest_task.is_running():
             daily_digest_task.start()
 
+    async def on_error(self, event: str, *args, **kwargs):
+        print(f"Unhandled error in event '{event}':")
+        traceback.print_exc()
+
 
 client = DemeryBot()
+
+
+@client.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    print(f"Command error in '{interaction.command.name if interaction.command else 'unknown'}': {type(error).__name__}: {error}")
 
 
 # --- digest helpers ---
@@ -266,6 +278,7 @@ async def disshelp(interaction: discord.Interaction):
 @app_commands.describe(channel="The text channel where Demery will post daily results")
 @app_commands.default_permissions(manage_channels=True)
 async def setchannel(interaction: discord.Interaction, channel: discord.TextChannel):
+    print(f"setchannel called: guild={interaction.guild_id} channel_id={channel.id} channel_name={channel.name}")
     db.set_guild_channel(interaction.guild_id, channel.id)
     await interaction.response.send_message(
         f"Got it — daily digests will post to {channel.mention}.", ephemeral=True
