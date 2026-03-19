@@ -98,10 +98,11 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 
 # --- digest helpers ---
 
-async def _run_digest(force: bool = False) -> str | None:
+async def _run_digest(force: bool = False, guild_id: int | None = None) -> str | None:
     """
-    Core digest logic. Posts to every configured guild channel.
-    Returns the posted message, or None if skipped.
+    Core digest logic. Posts a per-guild digest to each configured guild channel.
+    If guild_id is given, only process that guild (used by /testdigest).
+    Returns the last posted message, or None if skipped.
     force=True bypasses the already-posted guard and skips marking as posted.
     """
     guild_channels = db.get_all_guild_channels()
@@ -109,66 +110,73 @@ async def _run_digest(force: bool = False) -> str | None:
         print("No guild channels configured — skipping digest")
         return None
 
+    if guild_id is not None:
+        guild_channels = [gc for gc in guild_channels if gc["guild_id"] == guild_id]
+        if not guild_channels:
+            return None
+
     today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
-    state_key = f"digest_{today}"
-
-    if not force and db.get_digest_state(state_key):
-        return None  # already posted today
-
     games = await espn.fetch_today_results(today)
-    all_brackets = db.get_all_brackets()
-    submitters = []
-    for entry in all_brackets:
-        picks = entry["picks"]
-        busts, survivors = [], []
-        for game in games:
-            tier = ROUND_NAME_TO_TIER.get(game["round"])
-            if not tier:
-                continue  # play-in or unrecognized round — skip
-            idx = ROUND_TIER_ORDER.index(tier)
-            tiers_at_or_beyond = ROUND_TIER_ORDER[idx:]
-            # collect all teams user picked to survive this round or further
-            picked_teams = set()
-            for t in tiers_at_or_beyond:
-                val = picks.get(t, [])
-                picked_teams.update([val] if isinstance(val, str) else val)
-            if game["loser"] in picked_teams:
-                # find furthest tier they had the loser reaching
-                furthest = next(
-                    (t for t in reversed(ROUND_TIER_ORDER) if game["loser"] in (
-                        [picks[t]] if isinstance(picks.get(t), str) else picks.get(t, [])
-                    )),
-                    tier,
-                )
-                busts.append({
-                    "team": game["loser"],
-                    "picked_to_reach": furthest,
-                    "lost_in": game["round"],
-                })
-            if game["winner"] in picked_teams:
-                survivors.append({
-                    "team": game["winner"],
-                    "still_alive_through": game["round"],
-                })
-        submitters.append({
-            "mention": f"<@{entry['discord_user_id']}>",
-            "name": entry["display_name"],
-            "busts": busts,
-            "survivors": survivors,
-        })
 
-    if not submitters:
-        return None
-
-    message = await generate_digest(submitters)
+    last_message = None
     for gc in guild_channels:
+        gid = gc["guild_id"]
+        state_key = f"digest_{gid}_{today}"
+
+        if not force and db.get_digest_state(state_key):
+            continue  # already posted for this guild today
+
+        guild_brackets = db.get_guild_brackets(gid)
+        submitters = []
+        for entry in guild_brackets:
+            picks = entry["picks"]
+            busts, survivors = [], []
+            for game in games:
+                tier = ROUND_NAME_TO_TIER.get(game["round"])
+                if not tier:
+                    continue  # play-in or unrecognized round — skip
+                idx = ROUND_TIER_ORDER.index(tier)
+                tiers_at_or_beyond = ROUND_TIER_ORDER[idx:]
+                picked_teams = set()
+                for t in tiers_at_or_beyond:
+                    val = picks.get(t, [])
+                    picked_teams.update([val] if isinstance(val, str) else val)
+                if game["loser"] in picked_teams:
+                    furthest = next(
+                        (t for t in reversed(ROUND_TIER_ORDER) if game["loser"] in (
+                            [picks[t]] if isinstance(picks.get(t), str) else picks.get(t, [])
+                        )),
+                        tier,
+                    )
+                    busts.append({
+                        "team": game["loser"],
+                        "picked_to_reach": furthest,
+                        "lost_in": game["round"],
+                    })
+                if game["winner"] in picked_teams:
+                    survivors.append({
+                        "team": game["winner"],
+                        "still_alive_through": game["round"],
+                    })
+            submitters.append({
+                "mention": f"<@{entry['discord_user_id']}>",
+                "name": entry["display_name"],
+                "busts": busts,
+                "survivors": survivors,
+            })
+
+        if not submitters:
+            continue
+
+        message = await generate_digest(submitters)
         channel = client.get_channel(gc["channel_id"])
         if channel:
             await channel.send(message)
-    if not force:
-        db.set_digest_state(state_key, "posted")
+        if not force:
+            db.set_digest_state(state_key, "posted")
+        last_message = message
 
-    return message
+    return last_message
 
 
 # --- scheduled task ---
@@ -220,7 +228,7 @@ async def taunt(
         _last_used[caller_id] = now
 
     await interaction.response.defer()
-    bracket_data = db.get_bracket(user.id)
+    bracket_data = db.get_bracket(user.id, interaction.guild_id)
     taunt_text = await generate_taunt(user.display_name, intensity_value, bracket_data)
     await interaction.followup.send(f"{user.mention} {taunt_text}")
 
@@ -252,7 +260,7 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
         )
         return
 
-    db.upsert_bracket(interaction.user.id, interaction.user.display_name, picks)
+    db.upsert_bracket(interaction.user.id, interaction.guild_id, interaction.user.display_name, picks)
     ack = await generate_submission_ack(interaction.user.display_name, picks)
     await interaction.followup.send(f"{interaction.user.mention} {ack}")
 
@@ -351,7 +359,7 @@ async def testdigest(interaction: discord.Interaction):
 
     await interaction.response.defer(ephemeral=True)
     try:
-        message = await _run_digest(force=True)
+        message = await _run_digest(force=True, guild_id=interaction.guild_id)
         if message:
             await interaction.followup.send(
                 f"Digest posted:\n{message}", ephemeral=True
