@@ -39,7 +39,7 @@ class TestSystemPrompt:
         assert "harsh" in llm.SYSTEM_PROMPT
 
     def test_contains_friend_tone(self):
-        assert "teasing with a grin" in llm.SYSTEM_PROMPT
+        assert "roasting friends, not strangers" in llm.SYSTEM_PROMPT
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +223,7 @@ class TestGenerateDigest:
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "no headers, no bold formatting, no bullet points" in user_content
+        assert "no headers, no bold, no bullets" in user_content
 
 
 # ---------------------------------------------------------------------------
