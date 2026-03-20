@@ -3,6 +3,7 @@ import os
 import re
 import time
 import traceback
+import zoneinfo
 
 import discord
 from discord import app_commands
@@ -28,6 +29,7 @@ BYPASS_USER_IDS = {
     if uid.strip()
 }
 TAUNT_HOUR = int(os.getenv("TAUNT_HOUR") or "12")
+EASTERN = zoneinfo.ZoneInfo("America/New_York")
 
 COOLDOWN_SECONDS = 120
 _last_used: dict[int, float] = {}
@@ -121,8 +123,8 @@ async def _run_digest(force: bool = False, guild_id: int | None = None) -> str |
         if not guild_channels:
             return None
 
-    today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
-    print(f"[digest] Fetching games for {today}")
+    today = datetime.datetime.now(EASTERN).strftime("%Y%m%d")
+    print(f"[digest] Fetching games for {today} (Eastern)")
     games = await espn.fetch_today_results(today)
     print(f"[digest] ESPN returned {len(games)} completed games")
     for g in games:
@@ -263,7 +265,7 @@ async def taunt(
 @app_commands.describe(image="A screenshot of your filled-out bracket")
 async def submit_bracket(interaction: discord.Interaction, image: discord.Attachment):
     if interaction.user.id not in BYPASS_USER_IDS:
-        today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
+        today = datetime.datetime.now(EASTERN).strftime("%Y%m%d")
         last_date, count = _last_submit.get(interaction.user.id, ("", 0))
         if last_date == today and count >= MAX_SUBMIT_PER_DAY:
             await interaction.response.send_message(
