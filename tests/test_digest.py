@@ -3,20 +3,20 @@ Tests for _run_digest in bot.py — covers:
   US-9:  Daily digest — automatic bracket recap
   DS-13: Eastern time for game dates
 """
+
 import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 import bot
 import db
 import espn
-import llm
-
 
 # ---------------------------------------------------------------------------
 # US-9: Daily digest
 # ---------------------------------------------------------------------------
+
 
 class TestRunDigest:
     @pytest.mark.asyncio
@@ -152,6 +152,7 @@ class TestRunDigest:
 # ---------------------------------------------------------------------------
 # DS-13: Eastern time for game dates
 # ---------------------------------------------------------------------------
+
 
 class TestEasternTime:
     @pytest.mark.asyncio

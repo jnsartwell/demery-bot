@@ -18,16 +18,8 @@ load_dotenv()
 
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 DISCORD_BOT_APPLICATION_ID = int(os.environ["DISCORD_BOT_APPLICATION_ID"])
-DISCORD_GUILD_IDS = [
-    gid.strip()
-    for gid in os.getenv("DISCORD_GUILD_ID", "").split(",")
-    if gid.strip()
-]
-BYPASS_USER_IDS = {
-    int(uid.strip())
-    for uid in os.getenv("DISCORD_BYPASS_USER_IDS", "").split(",")
-    if uid.strip()
-}
+DISCORD_GUILD_IDS = [gid.strip() for gid in os.getenv("DISCORD_GUILD_ID", "").split(",") if gid.strip()]
+BYPASS_USER_IDS = {int(uid.strip()) for uid in os.getenv("DISCORD_BYPASS_USER_IDS", "").split(",") if uid.strip()}
 TAUNT_HOUR = int(os.getenv("TAUNT_HOUR") or "12")
 EASTERN = zoneinfo.ZoneInfo("America/New_York")
 
@@ -37,22 +29,26 @@ _last_submit: dict[int, tuple[str, int]] = {}  # user_id → (YYYYMMDD, count)
 MAX_SUBMIT_PER_DAY = 3
 
 ROUND_TIER_ORDER = [
-    "round_of_32", "sweet_16", "elite_eight",
-    "final_four", "championship_game", "champion",
+    "round_of_32",
+    "sweet_16",
+    "elite_eight",
+    "final_four",
+    "championship_game",
+    "champion",
 ]
 ROUND_NAME_TO_TIER = {
     # ESPN headline format (notes[0].headline) — verified against 2025 tournament data
-    "1st Round":              "round_of_32",
-    "2nd Round":              "sweet_16",
-    "Sweet 16":               "elite_eight",
-    "Elite 8":                "final_four",
-    "Final Four":             "championship_game",
-    "National Championship":  "champion",
+    "1st Round": "round_of_32",
+    "2nd Round": "sweet_16",
+    "Sweet 16": "elite_eight",
+    "Elite 8": "final_four",
+    "Final Four": "championship_game",
+    "National Championship": "champion",
     # Alternate forms — keep as fallback
-    "First Round":            "round_of_32",
-    "Second Round":           "sweet_16",
-    "Elite Eight":            "final_four",
-    "Championship":           "champion",
+    "First Round": "round_of_32",
+    "Second Round": "sweet_16",
+    "Elite Eight": "final_four",
+    "Championship": "champion",
 }
 
 
@@ -83,10 +79,12 @@ class DemeryBot(discord.Client):
         for guild in self.guilds:
             me = guild.me
             perms = me.guild_permissions
-            print(f"Guild '{guild.name}' ({guild.id}): "
-                  f"view_channel={perms.view_channel} send_messages={perms.send_messages} "
-                  f"roles=[{', '.join(r.name for r in me.roles)}] "
-                  f"text_channels_visible={len(guild.text_channels)}")
+            print(
+                f"Guild '{guild.name}' ({guild.id}): "
+                f"view_channel={perms.view_channel} send_messages={perms.send_messages} "
+                f"roles=[{', '.join(r.name for r in me.roles)}] "
+                f"text_channels_visible={len(guild.text_channels)}"
+            )
         db.init_db()
         if not daily_digest_task.is_running():
             daily_digest_task.start()
@@ -101,10 +99,12 @@ client = DemeryBot()
 
 @client.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    print(f"Command error in '{interaction.command.name if interaction.command else 'unknown'}': {type(error).__name__}: {error}")
+    cmd = interaction.command.name if interaction.command else "unknown"
+    print(f"Command error in '{cmd}': {type(error).__name__}: {error}")
 
 
 # --- helpers ---
+
 
 def _compute_bracket_status(picks: dict, games: list[dict]) -> dict:
     """Returns {"busts": [...], "survivors": [...]} for one user's picks against game results."""
@@ -123,21 +123,27 @@ def _compute_bracket_status(picks: dict, games: list[dict]) -> dict:
         winner_match = game["winner"] in picked_teams
         if loser_match:
             furthest = next(
-                (t for t in reversed(ROUND_TIER_ORDER) if game["loser"] in (
-                    [picks[t]] if isinstance(picks.get(t), str) else picks.get(t, [])
-                )),
+                (
+                    t
+                    for t in reversed(ROUND_TIER_ORDER)
+                    if game["loser"] in ([picks[t]] if isinstance(picks.get(t), str) else picks.get(t, []))
+                ),
                 tier,
             )
-            busts.append({
-                "team": game["loser"],
-                "picked_to_reach": furthest,
-                "lost_in": game["round"],
-            })
+            busts.append(
+                {
+                    "team": game["loser"],
+                    "picked_to_reach": furthest,
+                    "lost_in": game["round"],
+                }
+            )
         if winner_match:
-            survivors.append({
-                "team": game["winner"],
-                "still_alive_through": game["round"],
-            })
+            survivors.append(
+                {
+                    "team": game["winner"],
+                    "still_alive_through": game["round"],
+                }
+            )
     return {"busts": busts, "survivors": survivors}
 
 
@@ -174,17 +180,21 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
         submitters = []
         for entry in guild_brackets:
             picks = entry["picks"]
-            print(f"[digest]   User {entry['display_name']}: {len(picks.get('round_of_32', []))} R32 picks, champion={picks.get('champion')}")
+            r32 = len(picks.get("round_of_32", []))
+            champ = picks.get("champion")
+            print(f"[digest]   User {entry['display_name']}: {r32} R32 picks, champion={champ}")
             status = _compute_bracket_status(picks, games)
             busts = status["busts"]
             survivors = status["survivors"]
             print(f"[digest]   → {entry['display_name']}: {len(busts)} busts, {len(survivors)} survivors")
-            submitters.append({
-                "mention": f"<@{entry['discord_user_id']}>",
-                "name": entry["display_name"],
-                "busts": busts,
-                "survivors": survivors,
-            })
+            submitters.append(
+                {
+                    "mention": f"<@{entry['discord_user_id']}>",
+                    "name": entry["display_name"],
+                    "busts": busts,
+                    "survivors": survivors,
+                }
+            )
 
         if not submitters:
             print(f"[digest] Guild {gid}: no submitters, skipping")
@@ -203,9 +213,8 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
 
 # --- scheduled task ---
 
-@tasks.loop(
-    time=datetime.time(hour=TAUNT_HOUR, tzinfo=datetime.timezone.utc)
-)
+
+@tasks.loop(time=datetime.time(hour=TAUNT_HOUR, tzinfo=datetime.timezone.utc))
 async def daily_digest_task():
     try:
         await _run_digest()
@@ -221,16 +230,19 @@ async def before_digest():
 
 # --- commands ---
 
+
 @client.tree.command(name="diss", description="Have Demery roast someone's bracket picks")
 @app_commands.describe(
     user="The victim",
     intensity="How hard to go (default: medium)",
 )
-@app_commands.choices(intensity=[
-    app_commands.Choice(name="mild", value="mild"),
-    app_commands.Choice(name="medium", value="medium"),
-    app_commands.Choice(name="harsh", value="harsh"),
-])
+@app_commands.choices(
+    intensity=[
+        app_commands.Choice(name="mild", value="mild"),
+        app_commands.Choice(name="medium", value="medium"),
+        app_commands.Choice(name="harsh", value="harsh"),
+    ]
+)
 async def taunt(
     interaction: discord.Interaction,
     user: discord.Member,
@@ -283,9 +295,7 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
     try:
         picks = await parse_bracket_image(image.url)
     except ValueError as e:
-        await interaction.followup.send(
-            f"Couldn't read your bracket from that image: {e}", ephemeral=True
-        )
+        await interaction.followup.send(f"Couldn't read your bracket from that image: {e}", ephemeral=True)
         return
 
     # Normalize team names to match ESPN's exact displayName format
@@ -376,9 +386,7 @@ async def setchannel(interaction: discord.Interaction, channel: str):
 
     print(f"setchannel called: guild={interaction.guild_id} channel_id={channel_id} channel_name={target.name}")
     db.set_guild_channel(interaction.guild_id, channel_id)
-    await interaction.response.send_message(
-        f"Got it — daily digests will post to <#{channel_id}>.", ephemeral=True
-    )
+    await interaction.response.send_message(f"Got it — daily digests will post to <#{channel_id}>.", ephemeral=True)
 
 
 @client.tree.command(name="debugguild", description="[Dev] Show what the bot can see in this guild")
@@ -413,9 +421,7 @@ async def testdigest(interaction: discord.Interaction):
     try:
         message = await _run_digest(broadcast=False, guild_id=interaction.guild_id)
         if message:
-            await interaction.followup.send(
-                f"Digest preview:\n{message}", ephemeral=True
-            )
+            await interaction.followup.send(f"Digest preview:\n{message}", ephemeral=True)
         else:
             await interaction.followup.send(
                 "Nothing to post — no completed games today or no brackets on file.",
@@ -435,9 +441,7 @@ async def pushdigest(interaction: discord.Interaction):
     try:
         message = await _run_digest(guild_id=interaction.guild_id)
         if message:
-            await interaction.followup.send(
-                f"Digest pushed to channel:\n{message}", ephemeral=True
-            )
+            await interaction.followup.send(f"Digest pushed to channel:\n{message}", ephemeral=True)
         else:
             await interaction.followup.send(
                 "Nothing to post — no completed games today or no brackets on file.",

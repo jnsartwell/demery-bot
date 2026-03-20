@@ -5,18 +5,19 @@ Tests for llm.py — covers:
   DS-7:  Prompt caching on system prompt
   DS-8:  Bracket image parsing robustness
 """
+
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aioresponses import aioresponses
 
 import llm
 
-
 # ---------------------------------------------------------------------------
 # US-11: Tone and personality — system prompt content
 # ---------------------------------------------------------------------------
+
 
 class TestSystemPrompt:
     def test_contains_character_name(self):
@@ -45,6 +46,7 @@ class TestSystemPrompt:
 # DS-7: Prompt caching on system prompt
 # ---------------------------------------------------------------------------
 
+
 class TestPromptCaching:
     @pytest.mark.asyncio
     async def test_generate_taunt_uses_cache_control(self, mock_anthropic):
@@ -72,6 +74,7 @@ class TestPromptCaching:
 # ---------------------------------------------------------------------------
 # generate_taunt
 # ---------------------------------------------------------------------------
+
 
 class TestGenerateTaunt:
     @pytest.mark.asyncio
@@ -136,6 +139,7 @@ class TestGenerateTaunt:
 # generate_submission_ack
 # ---------------------------------------------------------------------------
 
+
 class TestGenerateSubmissionAck:
     @pytest.mark.asyncio
     async def test_includes_champion(self, mock_anthropic):
@@ -153,6 +157,7 @@ class TestGenerateSubmissionAck:
 # ---------------------------------------------------------------------------
 # generate_digest
 # ---------------------------------------------------------------------------
+
 
 class TestGenerateDigest:
     @pytest.mark.asyncio
@@ -178,11 +183,14 @@ class TestGenerateDigest:
 
     @pytest.mark.asyncio
     async def test_activity_context(self, mock_anthropic):
-        submitters = [{
-            "mention": "<@1>", "name": "A",
-            "busts": [{"team": "X", "picked_to_reach": "sweet_16", "lost_in": "1st Round"}],
-            "survivors": [],
-        }]
+        submitters = [
+            {
+                "mention": "<@1>",
+                "name": "A",
+                "busts": [{"team": "X", "picked_to_reach": "sweet_16", "lost_in": "1st Round"}],
+                "survivors": [],
+            }
+        ]
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
@@ -201,6 +209,7 @@ class TestGenerateDigest:
 # DS-8: Bracket image parsing robustness
 # ---------------------------------------------------------------------------
 
+
 class TestParseBracketImage:
     def _mock_response(self, text):
         mock_resp = MagicMock()
@@ -208,21 +217,21 @@ class TestParseBracketImage:
         return mock_resp
 
     def _valid_picks_json(self):
-        return json.dumps({
-            "round_of_32": ["A"] * 32,
-            "sweet_16": ["A"] * 16,
-            "elite_eight": ["A"] * 8,
-            "final_four": ["A"] * 4,
-            "championship_game": ["A", "B"],
-            "champion": "A",
-        })
+        return json.dumps(
+            {
+                "round_of_32": ["A"] * 32,
+                "sweet_16": ["A"] * 16,
+                "elite_eight": ["A"] * 8,
+                "final_four": ["A"] * 4,
+                "championship_game": ["A", "B"],
+                "champion": "A",
+            }
+        )
 
     @pytest.mark.asyncio
     async def test_valid_json_returns_picks(self, monkeypatch):
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(
-            return_value=self._mock_response(self._valid_picks_json())
-        )
+        mock_client.messages.create = AsyncMock(return_value=self._mock_response(self._valid_picks_json()))
         monkeypatch.setattr(llm, "client", mock_client)
 
         with aioresponses() as m:
@@ -236,9 +245,7 @@ class TestParseBracketImage:
     async def test_strips_markdown_fences(self, monkeypatch):
         wrapped = f"```json\n{self._valid_picks_json()}\n```"
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(
-            return_value=self._mock_response(wrapped)
-        )
+        mock_client.messages.create = AsyncMock(return_value=self._mock_response(wrapped))
         monkeypatch.setattr(llm, "client", mock_client)
 
         with aioresponses() as m:
@@ -251,9 +258,7 @@ class TestParseBracketImage:
     async def test_extracts_json_from_surrounding_text(self, monkeypatch):
         wrapped = f"Here are the picks:\n{self._valid_picks_json()}\nHope that helps!"
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(
-            return_value=self._mock_response(wrapped)
-        )
+        mock_client.messages.create = AsyncMock(return_value=self._mock_response(wrapped))
         monkeypatch.setattr(llm, "client", mock_client)
 
         with aioresponses() as m:
@@ -266,9 +271,7 @@ class TestParseBracketImage:
     async def test_error_key_raises_valueerror(self, monkeypatch):
         error_json = json.dumps({"error": "Cannot read this bracket"})
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(
-            return_value=self._mock_response(error_json)
-        )
+        mock_client.messages.create = AsyncMock(return_value=self._mock_response(error_json))
         monkeypatch.setattr(llm, "client", mock_client)
 
         with aioresponses() as m:
@@ -280,9 +283,7 @@ class TestParseBracketImage:
     async def test_missing_keys_raises_valueerror(self, monkeypatch):
         incomplete = json.dumps({"round_of_32": ["A"], "champion": "A"})
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(
-            return_value=self._mock_response(incomplete)
-        )
+        mock_client.messages.create = AsyncMock(return_value=self._mock_response(incomplete))
         monkeypatch.setattr(llm, "client", mock_client)
 
         with aioresponses() as m:
@@ -308,14 +309,13 @@ class TestParseBracketImage:
 # DS-6: Team name normalization
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizeTeamNames:
     @pytest.mark.asyncio
     async def test_maps_names_correctly(self, monkeypatch):
         mapping = {"Duke": "Duke Blue Devils", "UConn Huskies": "Connecticut Huskies"}
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(
-            return_value=MagicMock(content=[MagicMock(text=json.dumps(mapping))])
-        )
+        mock_client.messages.create = AsyncMock(return_value=MagicMock(content=[MagicMock(text=json.dumps(mapping))]))
         monkeypatch.setattr(llm, "client", mock_client)
 
         picks = {
@@ -332,21 +332,31 @@ class TestNormalizeTeamNames:
 
     @pytest.mark.asyncio
     async def test_empty_espn_list_noop(self):
-        picks = {"round_of_32": ["Duke"], "champion": "Duke",
-                 "sweet_16": [], "elite_eight": [], "final_four": [], "championship_game": []}
+        picks = {
+            "round_of_32": ["Duke"],
+            "champion": "Duke",
+            "sweet_16": [],
+            "elite_eight": [],
+            "final_four": [],
+            "championship_game": [],
+        }
         result = await llm.normalize_team_names(picks, [])
         assert result == picks
 
     @pytest.mark.asyncio
     async def test_malformed_response_returns_raw(self, monkeypatch):
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(
-            return_value=MagicMock(content=[MagicMock(text="not json at all")])
-        )
+        mock_client.messages.create = AsyncMock(return_value=MagicMock(content=[MagicMock(text="not json at all")]))
         monkeypatch.setattr(llm, "client", mock_client)
 
-        picks = {"round_of_32": ["Duke"], "champion": "Duke",
-                 "sweet_16": [], "elite_eight": [], "final_four": [], "championship_game": []}
+        picks = {
+            "round_of_32": ["Duke"],
+            "champion": "Duke",
+            "sweet_16": [],
+            "elite_eight": [],
+            "final_four": [],
+            "championship_game": [],
+        }
         result = await llm.normalize_team_names(picks, ["Duke Blue Devils"])
         assert result == picks
 
@@ -355,12 +365,16 @@ class TestNormalizeTeamNames:
         mapping = {"Duke": "Duke Blue Devils"}
         wrapped = f"```json\n{json.dumps(mapping)}\n```"
         mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(
-            return_value=MagicMock(content=[MagicMock(text=wrapped)])
-        )
+        mock_client.messages.create = AsyncMock(return_value=MagicMock(content=[MagicMock(text=wrapped)]))
         monkeypatch.setattr(llm, "client", mock_client)
 
-        picks = {"round_of_32": ["Duke"], "champion": "Duke",
-                 "sweet_16": [], "elite_eight": [], "final_four": [], "championship_game": []}
+        picks = {
+            "round_of_32": ["Duke"],
+            "champion": "Duke",
+            "sweet_16": [],
+            "elite_eight": [],
+            "final_four": [],
+            "championship_game": [],
+        }
         result = await llm.normalize_team_names(picks, ["Duke Blue Devils"])
         assert result["champion"] == "Duke Blue Devils"

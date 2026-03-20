@@ -2,10 +2,9 @@
 Tests for /setchannel command — covers:
   US-10: Set the digest channel
 """
-import re
-from unittest.mock import AsyncMock, MagicMock
 
-import discord
+from unittest.mock import MagicMock
+
 import pytest
 
 import bot

@@ -1,5 +1,4 @@
 import os
-import sqlite3
 
 # Set dummy env vars BEFORE any project imports (bot.py reads them at import time)
 os.environ.setdefault("DISCORD_BOT_TOKEN", "test-token")
@@ -18,10 +17,10 @@ import db
 import espn
 import llm
 
-
 # ---------------------------------------------------------------------------
 # Database — every test gets a fresh in-memory SQLite DB
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def tmp_db(tmp_path, monkeypatch):
@@ -35,6 +34,7 @@ def tmp_db(tmp_path, monkeypatch):
 # Reset module-level caches between tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def clear_caches(monkeypatch):
     monkeypatch.setattr(espn, "_cached_results", {})
@@ -47,38 +47,77 @@ def clear_caches(monkeypatch):
 # Sample data
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def sample_picks():
     return {
         "round_of_32": [
-            "Duke Blue Devils", "Kansas Jayhawks", "Gonzaga Bulldogs",
-            "Houston Cougars", "Arizona Wildcats", "Purdue Boilermakers",
-            "North Carolina Tar Heels", "UCLA Bruins", "Tennessee Volunteers",
-            "Baylor Bears", "Kentucky Wildcats", "Marquette Golden Eagles",
-            "Alabama Crimson Tide", "Indiana Hoosiers", "Saint Mary's Gaels",
-            "Creighton Bluejays", "Texas Longhorns", "Miami Hurricanes",
-            "Xavier Musketeers", "Iowa State Cyclones", "Connecticut Huskies",
-            "TCU Horned Frogs", "Michigan State Spartans", "Arkansas Razorbacks",
-            "Memphis Tigers", "Florida Atlantic Owls", "San Diego State Aztecs",
-            "Nevada Wolf Pack", "Charleston Cougars", "Oral Roberts Golden Eagles",
-            "Vermont Catamounts", "Colgate Raiders",
+            "Duke Blue Devils",
+            "Kansas Jayhawks",
+            "Gonzaga Bulldogs",
+            "Houston Cougars",
+            "Arizona Wildcats",
+            "Purdue Boilermakers",
+            "North Carolina Tar Heels",
+            "UCLA Bruins",
+            "Tennessee Volunteers",
+            "Baylor Bears",
+            "Kentucky Wildcats",
+            "Marquette Golden Eagles",
+            "Alabama Crimson Tide",
+            "Indiana Hoosiers",
+            "Saint Mary's Gaels",
+            "Creighton Bluejays",
+            "Texas Longhorns",
+            "Miami Hurricanes",
+            "Xavier Musketeers",
+            "Iowa State Cyclones",
+            "Connecticut Huskies",
+            "TCU Horned Frogs",
+            "Michigan State Spartans",
+            "Arkansas Razorbacks",
+            "Memphis Tigers",
+            "Florida Atlantic Owls",
+            "San Diego State Aztecs",
+            "Nevada Wolf Pack",
+            "Charleston Cougars",
+            "Oral Roberts Golden Eagles",
+            "Vermont Catamounts",
+            "Colgate Raiders",
         ],
         "sweet_16": [
-            "Duke Blue Devils", "Kansas Jayhawks", "Gonzaga Bulldogs",
-            "Houston Cougars", "Arizona Wildcats", "Purdue Boilermakers",
-            "North Carolina Tar Heels", "UCLA Bruins", "Tennessee Volunteers",
-            "Baylor Bears", "Kentucky Wildcats", "Marquette Golden Eagles",
-            "Alabama Crimson Tide", "Indiana Hoosiers", "Saint Mary's Gaels",
+            "Duke Blue Devils",
+            "Kansas Jayhawks",
+            "Gonzaga Bulldogs",
+            "Houston Cougars",
+            "Arizona Wildcats",
+            "Purdue Boilermakers",
+            "North Carolina Tar Heels",
+            "UCLA Bruins",
+            "Tennessee Volunteers",
+            "Baylor Bears",
+            "Kentucky Wildcats",
+            "Marquette Golden Eagles",
+            "Alabama Crimson Tide",
+            "Indiana Hoosiers",
+            "Saint Mary's Gaels",
             "Creighton Bluejays",
         ],
         "elite_eight": [
-            "Duke Blue Devils", "Kansas Jayhawks", "Gonzaga Bulldogs",
-            "Houston Cougars", "Arizona Wildcats", "Purdue Boilermakers",
-            "North Carolina Tar Heels", "UCLA Bruins",
+            "Duke Blue Devils",
+            "Kansas Jayhawks",
+            "Gonzaga Bulldogs",
+            "Houston Cougars",
+            "Arizona Wildcats",
+            "Purdue Boilermakers",
+            "North Carolina Tar Heels",
+            "UCLA Bruins",
         ],
         "final_four": [
-            "Duke Blue Devils", "Kansas Jayhawks",
-            "Gonzaga Bulldogs", "Houston Cougars",
+            "Duke Blue Devils",
+            "Kansas Jayhawks",
+            "Gonzaga Bulldogs",
+            "Houston Cougars",
         ],
         "championship_game": ["Duke Blue Devils", "Kansas Jayhawks"],
         "champion": "Duke Blue Devils",
@@ -98,6 +137,7 @@ def sample_games():
 # Mock Anthropic client
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_anthropic(monkeypatch):
     mock_client = AsyncMock()
@@ -111,6 +151,7 @@ def mock_anthropic(monkeypatch):
 # ---------------------------------------------------------------------------
 # Mock Discord interaction factory
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def make_interaction():
@@ -129,6 +170,7 @@ def make_interaction():
         interaction.command = MagicMock()
         interaction.command.name = "test"
         return interaction
+
     return _make
 
 
@@ -140,6 +182,7 @@ def make_member():
         member.display_name = display_name
         member.mention = f"<@{user_id}>"
         return member
+
     return _make
 
 
@@ -149,6 +192,7 @@ def make_intensity():
         choice = MagicMock()
         choice.value = value
         return choice
+
     return _make
 
 

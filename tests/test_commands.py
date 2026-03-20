@@ -10,22 +10,20 @@ Tests for slash commands in bot.py — covers:
   DS-2:  Push digest (broadcast)
   DS-3:  Debug guild visibility
 """
-import json
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
 
-import discord
+import time
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 import bot
 import db
 import espn
-import llm
-
 
 # ---------------------------------------------------------------------------
 # US-1: Diss a friend's bracket
 # ---------------------------------------------------------------------------
+
 
 class TestDissCommand:
     @pytest.mark.asyncio
@@ -46,7 +44,9 @@ class TestDissCommand:
         assert "<@2001>" in sent
 
     @pytest.mark.asyncio
-    async def test_default_intensity_medium(self, make_interaction, make_member, bypass_user, mock_anthropic, monkeypatch):
+    async def test_default_intensity_medium(
+        self, make_interaction, make_member, bypass_user, mock_anthropic, monkeypatch
+    ):
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
         mock_gen = AsyncMock(return_value="roast")
         monkeypatch.setattr(bot, "generate_taunt", mock_gen)
@@ -56,7 +56,9 @@ class TestDissCommand:
         assert mock_gen.call_args[0][1] == "medium"
 
     @pytest.mark.asyncio
-    async def test_intensity_passed_through(self, make_interaction, make_member, make_intensity, bypass_user, mock_anthropic, monkeypatch):
+    async def test_intensity_passed_through(
+        self, make_interaction, make_member, make_intensity, bypass_user, mock_anthropic, monkeypatch
+    ):
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
         mock_gen = AsyncMock(return_value="roast")
         monkeypatch.setattr(bot, "generate_taunt", mock_gen)
@@ -66,7 +68,9 @@ class TestDissCommand:
         assert mock_gen.call_args[0][1] == "harsh"
 
     @pytest.mark.asyncio
-    async def test_with_bracket_passes_picks(self, make_interaction, make_member, bypass_user, sample_picks, mock_anthropic, monkeypatch):
+    async def test_with_bracket_passes_picks(
+        self, make_interaction, make_member, bypass_user, sample_picks, mock_anthropic, monkeypatch
+    ):
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
         mock_gen = AsyncMock(return_value="roast")
         monkeypatch.setattr(bot, "generate_taunt", mock_gen)
@@ -78,7 +82,9 @@ class TestDissCommand:
         assert mock_gen.call_args[0][2] is not None  # bracket_data
 
     @pytest.mark.asyncio
-    async def test_without_bracket_no_picks(self, make_interaction, make_member, bypass_user, mock_anthropic, monkeypatch):
+    async def test_without_bracket_no_picks(
+        self, make_interaction, make_member, bypass_user, mock_anthropic, monkeypatch
+    ):
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
         mock_gen = AsyncMock(return_value="roast")
         monkeypatch.setattr(bot, "generate_taunt", mock_gen)
@@ -90,7 +96,9 @@ class TestDissCommand:
         assert mock_gen.call_args[0][3] is None  # results
 
     @pytest.mark.asyncio
-    async def test_with_bracket_and_results(self, make_interaction, make_member, bypass_user, sample_picks, mock_anthropic, monkeypatch):
+    async def test_with_bracket_and_results(
+        self, make_interaction, make_member, bypass_user, sample_picks, mock_anthropic, monkeypatch
+    ):
         """When bracket exists and games have been played, results are computed and passed."""
         games = [{"winner": "Duke Blue Devils", "loser": "Vermont Catamounts", "round": "1st Round"}]
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=games))
@@ -110,6 +118,7 @@ class TestDissCommand:
 # ---------------------------------------------------------------------------
 # US-2: Cooldown on /diss
 # ---------------------------------------------------------------------------
+
 
 class TestDissCooldown:
     @pytest.mark.asyncio
@@ -193,6 +202,7 @@ class TestDissCooldown:
 # ---------------------------------------------------------------------------
 # US-3: Submit a bracket via image upload
 # ---------------------------------------------------------------------------
+
 
 class TestSubmitBracketCommand:
     def _valid_picks(self):
@@ -301,12 +311,16 @@ class TestSubmitBracketCommand:
 # US-4: Submission rate limit
 # ---------------------------------------------------------------------------
 
+
 class TestSubmitRateLimit:
     def _setup_mocks(self, monkeypatch):
         picks = {
-            "round_of_32": ["A"] * 32, "sweet_16": ["A"] * 16,
-            "elite_eight": ["A"] * 8, "final_four": ["A"] * 4,
-            "championship_game": ["A", "B"], "champion": "A",
+            "round_of_32": ["A"] * 32,
+            "sweet_16": ["A"] * 16,
+            "elite_eight": ["A"] * 8,
+            "final_four": ["A"] * 4,
+            "championship_game": ["A", "B"],
+            "champion": "A",
         }
         monkeypatch.setattr(bot, "parse_bracket_image", AsyncMock(return_value=picks))
         monkeypatch.setattr(bot, "normalize_team_names", AsyncMock(return_value=picks))
@@ -349,6 +363,7 @@ class TestSubmitRateLimit:
 # ---------------------------------------------------------------------------
 # US-7: View help
 # ---------------------------------------------------------------------------
+
 
 class TestDissHelpCommand:
     @pytest.mark.asyncio
@@ -394,6 +409,7 @@ class TestDissHelpCommand:
 # US-8: View about info
 # ---------------------------------------------------------------------------
 
+
 class TestAboutCommand:
     @pytest.mark.asyncio
     async def test_not_ephemeral(self, make_interaction):
@@ -418,6 +434,7 @@ class TestAboutCommand:
 # DS-1: Test digest (preview)
 # ---------------------------------------------------------------------------
 
+
 class TestTestDigestCommand:
     @pytest.mark.asyncio
     async def test_bypass_only(self, make_interaction, monkeypatch):
@@ -438,7 +455,9 @@ class TestTestDigestCommand:
         assert "Nothing to post" in msg
 
     @pytest.mark.asyncio
-    async def test_ephemeral_no_broadcast(self, make_interaction, bypass_user, sample_picks, monkeypatch, mock_anthropic):
+    async def test_ephemeral_no_broadcast(
+        self, make_interaction, bypass_user, sample_picks, monkeypatch, mock_anthropic
+    ):
         monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=[]))
         interaction = make_interaction(user_id=bypass_user, guild_id=9001)
         db.set_guild_channel(9001, 5001)
@@ -454,6 +473,7 @@ class TestTestDigestCommand:
 # DS-2: Push digest (broadcast)
 # ---------------------------------------------------------------------------
 
+
 class TestPushDigestCommand:
     @pytest.mark.asyncio
     async def test_bypass_only(self, make_interaction, monkeypatch):
@@ -464,7 +484,9 @@ class TestPushDigestCommand:
         assert "Not for you" in msg
 
     @pytest.mark.asyncio
-    async def test_broadcasts_to_channel(self, make_interaction, bypass_user, sample_picks, monkeypatch, mock_anthropic):
+    async def test_broadcasts_to_channel(
+        self, make_interaction, bypass_user, sample_picks, monkeypatch, mock_anthropic
+    ):
         monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=[]))
         interaction = make_interaction(user_id=bypass_user, guild_id=9001)
         db.set_guild_channel(9001, 5001)
@@ -481,6 +503,7 @@ class TestPushDigestCommand:
 # ---------------------------------------------------------------------------
 # DS-3: Debug guild visibility
 # ---------------------------------------------------------------------------
+
 
 class TestDebugGuildCommand:
     @pytest.mark.asyncio

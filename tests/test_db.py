@@ -4,36 +4,30 @@ Tests for db.py — covers:
   US-6:  Brackets are per-guild
   DS-10: Database migrations
 """
-import json
+
 import sqlite3
 
 import db
-
 
 # ---------------------------------------------------------------------------
 # DS-10: Database migrations
 # ---------------------------------------------------------------------------
 
+
 class TestInitDb:
     def test_creates_brackets_table(self, tmp_db):
         with sqlite3.connect(tmp_db) as con:
-            tables = {r[0] for r in con.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()}
+            tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
         assert "brackets" in tables
 
     def test_creates_guild_settings_table(self, tmp_db):
         with sqlite3.connect(tmp_db) as con:
-            tables = {r[0] for r in con.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()}
+            tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
         assert "guild_settings" in tables
 
     def test_creates_schema_migrations_table(self, tmp_db):
         with sqlite3.connect(tmp_db) as con:
-            tables = {r[0] for r in con.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()}
+            tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
         assert "schema_migrations" in tables
 
     def test_migration_recorded(self, tmp_db):
@@ -55,6 +49,7 @@ class TestInitDb:
 # ---------------------------------------------------------------------------
 # US-5: Re-submit a bracket (upsert)
 # ---------------------------------------------------------------------------
+
 
 class TestUpsertBracket:
     def test_insert_and_retrieve(self, tmp_db, sample_picks):
@@ -95,6 +90,7 @@ class TestUpsertBracket:
 # US-6: Brackets are per-guild
 # ---------------------------------------------------------------------------
 
+
 class TestPerGuildBrackets:
     def test_same_user_different_guilds(self, tmp_db, sample_picks):
         picks_a = {**sample_picks, "champion": "Duke Blue Devils"}
@@ -124,6 +120,7 @@ class TestPerGuildBrackets:
 # ---------------------------------------------------------------------------
 # Guild channel settings
 # ---------------------------------------------------------------------------
+
 
 class TestGuildChannelSettings:
     def test_set_and_get(self, tmp_db):

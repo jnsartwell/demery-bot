@@ -3,13 +3,13 @@ Tests for _compute_bracket_status — covers:
   DS-11: Round-to-tier mapping
   DS-12: Bust and survivor computation
 """
-import bot
-from bot import _compute_bracket_status, ROUND_NAME_TO_TIER, ROUND_TIER_ORDER
 
+from bot import ROUND_NAME_TO_TIER, ROUND_TIER_ORDER, _compute_bracket_status
 
 # ---------------------------------------------------------------------------
 # DS-11: Round-to-tier mapping
 # ---------------------------------------------------------------------------
+
 
 class TestRoundNameToTier:
     def test_primary_mappings(self):
@@ -33,14 +33,19 @@ class TestRoundNameToTier:
 
     def test_tier_order_complete(self):
         assert ROUND_TIER_ORDER == [
-            "round_of_32", "sweet_16", "elite_eight",
-            "final_four", "championship_game", "champion",
+            "round_of_32",
+            "sweet_16",
+            "elite_eight",
+            "final_four",
+            "championship_game",
+            "champion",
         ]
 
 
 # ---------------------------------------------------------------------------
 # DS-12: Bust and survivor computation
 # ---------------------------------------------------------------------------
+
 
 class TestComputeBracketStatus:
     def _picks(self, **overrides):

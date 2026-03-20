@@ -43,10 +43,15 @@ async def generate_taunt(
         )
     if results:
         if results["busts"]:
-            bust_lines = [f"- {b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})" for b in results["busts"]]
+            bust_lines = [
+                f"- {b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})"
+                for b in results["busts"]
+            ]
             content += "\n\nBusted bracket picks so far:\n" + "\n".join(bust_lines)
         if results["survivors"]:
-            surv_lines = [f"- {s['team']} (still alive through {s['still_alive_through']})" for s in results["survivors"]]
+            surv_lines = [
+                f"- {s['team']} (still alive through {s['still_alive_through']})" for s in results["survivors"]
+            ]
             content += "\n\nSurvivors still alive:\n" + "\n".join(surv_lines)
         content += "\n\nUse the tournament results to make the roast hit harder — busted picks are prime material."
     response = await client.messages.create(
@@ -105,8 +110,11 @@ This is a March Madness bracket image. Extract the user's PICKS for each round.
 
 IMPORTANT CONTEXT:
 - This may be a screenshot from ESPN, Yahoo, CBS, or any other bracket provider, taken mid-tournament.
-- Different apps use different visual indicators for results: green circles, checkmarks, highlights for correct picks; red X marks, strikethroughs, grayed-out or faded names for wrong picks. Ignore all of these indicators.
-- We want the user's ORIGINAL PICKS, not actual results. Extract every team they picked to advance in each round, whether that pick was correct or not.
+- Different apps use different visual indicators for results: green circles, checkmarks, \
+highlights for correct picks; red X marks, strikethroughs, grayed-out or faded names for \
+wrong picks. Ignore all of these indicators.
+- We want the user's ORIGINAL PICKS, not actual results. Extract every team they picked to \
+advance in each round, whether that pick was correct or not.
 - Eliminated or busted picks may appear faded, crossed out, or marked wrong — extract them anyway.
 
 Use full ESPN display names (e.g. "Duke Blue Devils", "Arizona Wildcats", "UConn Huskies").
@@ -179,8 +187,12 @@ If you cannot read the bracket clearly or any round is missing, respond with onl
         raise ValueError(f"Claude could not read bracket: {picks['error']}")
 
     required_keys = {
-        "round_of_32", "sweet_16", "elite_eight",
-        "final_four", "championship_game", "champion",
+        "round_of_32",
+        "sweet_16",
+        "elite_eight",
+        "final_four",
+        "championship_game",
+        "champion",
     }
     missing = required_keys - picks.keys()
     if missing:
@@ -269,15 +281,11 @@ async def generate_digest(submitters: list[dict]) -> str:
         parts = [f"{s['mention']} ({s['name']})"]
         if s["busts"]:
             bust_strs = [
-                f"{b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})"
-                for b in s["busts"]
+                f"{b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})" for b in s["busts"]
             ]
             parts.append("Busts: " + "; ".join(bust_strs))
         if s["survivors"]:
-            survivor_strs = [
-                f"{sv['team']} (still alive through {sv['still_alive_through']})"
-                for sv in s["survivors"]
-            ]
+            survivor_strs = [f"{sv['team']} (still alive through {sv['still_alive_through']})" for sv in s["survivors"]]
             parts.append("Survivors: " + "; ".join(survivor_strs))
         if not s["busts"] and not s["survivors"]:
             parts.append("No bracket activity today")
@@ -297,16 +305,16 @@ async def generate_digest(submitters: list[dict]) -> str:
     all_quiet = all(not s["busts"] and not s["survivors"] for s in submitters)
     context = (
         "No games were played today — brackets are untouched."
-        if all_quiet else
-        "Here's how everyone's bracket is looking after today's games."
+        if all_quiet
+        else "Here's how everyone's bracket is looking after today's games."
     )
     content = (
-        f"{context} Bracket status:\n\n"
-        + "\n".join(lines)
-        + "\n\nWrite a Demery-style daily bracket update. "
-        "Write it like a real person typing in a Discord channel — no headers, no bold formatting, no bullet points. Just natural flowing text. "
+        f"{context} Bracket status:\n\n" + "\n".join(lines) + "\n\nWrite a Demery-style daily bracket update. "
+        "Write it like a real person typing in a Discord channel — "
+        "no headers, no bold formatting, no bullet points. Just natural flowing text. "
         "Open with a fresh, varied line that fits the vibe — don't always start the same way. "
-        "Mention each person using their EXACT Discord tag (e.g. <@123456>) — copy it verbatim, do not replace it with a name or @username. "
+        "Mention each person using their EXACT Discord tag (e.g. <@123456>) — "
+        "copy it verbatim, do not replace it with a name or @username. "
         "For busts: roast them with context — if you had a team going to the championship "
         "and they lost in the Elite Eight, that's richer material than a generic loss. "
         "For survivors: sarcastically praise them like they don't deserve it. "

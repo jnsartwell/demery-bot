@@ -27,6 +27,28 @@ python bot.py
 | `DISCORD_GUILD_ID` | Comma-separated guild IDs for instant slash command sync (optional) |
 | `DB_PATH` | SQLite path; set to `./brackets.db` locally (defaults to `/data/brackets.db` for Fly.io) |
 
+## Pre-Commit Hook
+
+After cloning, point git at the repo's hooks directory:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+This runs lint + tests automatically before every commit. If either fails, the commit is blocked.
+
+## Linting
+
+```bash
+ruff check              # lint (unused imports, errors, import order)
+ruff format --check     # check formatting without changing files
+ruff format             # auto-format in place
+ruff check --fix        # auto-fix lint issues (e.g. unused imports)
+```
+
+- [Ruff](https://docs.astral.sh/ruff/) handles linting and formatting — config in `pyproject.toml`
+- Lint + format checks must pass before deploy (enforced by CI)
+
 ## Testing
 
 ```bash
@@ -42,7 +64,7 @@ python -m pytest tests/ -v
 
 Trigger manually via **Actions → Deploy to Fly.io → Run workflow**.
 
-The workflow runs tests first — if any test fails, the deploy is blocked. On success, it syncs all secrets/vars and deploys a single machine to Fly.io.
+The workflow runs lint and tests first — if either fails, the deploy is blocked. On success, it syncs all secrets/vars and deploys a single machine to Fly.io.
 
 ### GitHub Secrets & Variables
 

@@ -2,15 +2,10 @@ import datetime
 
 import aiohttp
 
-ESPN_SCOREBOARD_API = (
-    "https://site.api.espn.com/apis/site/v2/sports/basketball"
-    "/mens-college-basketball/scoreboard"
-)
+ESPN_SCOREBOARD_API = "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard"
 
 
-async def _get_json(
-    session: aiohttp.ClientSession, url: str, params: dict = None
-) -> dict:
+async def _get_json(session: aiohttp.ClientSession, url: str, params: dict = None) -> dict:
     async with session.get(url, params=params) as resp:
         resp.raise_for_status()
         return await resp.json(content_type=None)

@@ -40,13 +40,9 @@ def rollback_migration(filename: str | None = None):
     with sqlite3.connect(DB_PATH) as con:
         _ensure_migrations_table(con)
         if filename:
-            row = con.execute(
-                "SELECT filename FROM schema_migrations WHERE filename = ?", (filename,)
-            ).fetchone()
+            row = con.execute("SELECT filename FROM schema_migrations WHERE filename = ?", (filename,)).fetchone()
         else:
-            row = con.execute(
-                "SELECT filename FROM schema_migrations ORDER BY applied_at DESC LIMIT 1"
-            ).fetchone()
+            row = con.execute("SELECT filename FROM schema_migrations ORDER BY applied_at DESC LIMIT 1").fetchone()
 
         if not row:
             print("No migrations to roll back")
@@ -119,10 +115,7 @@ def get_guild_brackets(guild_id: int) -> list[dict]:
             "SELECT discord_user_id, display_name, picks_json FROM brackets WHERE guild_id = ?",
             (guild_id,),
         ).fetchall()
-    return [
-        {"discord_user_id": r[0], "display_name": r[1], "picks": json.loads(r[2])}
-        for r in rows
-    ]
+    return [{"discord_user_id": r[0], "display_name": r[1], "picks": json.loads(r[2])} for r in rows]
 
 
 def set_guild_channel(guild_id: int, channel_id: int):
@@ -136,9 +129,5 @@ def set_guild_channel(guild_id: int, channel_id: int):
 
 def get_all_guild_channels() -> list[dict]:
     with sqlite3.connect(DB_PATH) as con:
-        rows = con.execute(
-            "SELECT guild_id, taunt_channel_id FROM guild_settings"
-        ).fetchall()
+        rows = con.execute("SELECT guild_id, taunt_channel_id FROM guild_settings").fetchall()
     return [{"guild_id": r[0], "channel_id": r[1]} for r in rows]
-
-

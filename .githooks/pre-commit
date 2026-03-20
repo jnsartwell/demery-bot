@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -e
+
+echo "Running pre-commit checks..."
+
+# Activate venv if present
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+fi
+
+echo "  Lint..."
+ruff check
+ruff format --check
+
+echo "  Tests..."
+python -m pytest tests/ -q
+
+echo "All checks passed."

@@ -3,9 +3,9 @@ Tests for espn.py — covers:
   DS-4: ESPN scoreboard result caching
   DS-5: ESPN tournament team name caching
 """
+
 import datetime
 import re
-from unittest.mock import AsyncMock
 
 import pytest
 from aioresponses import aioresponses
@@ -19,19 +19,22 @@ ESPN_URL_PATTERN = re.compile(r".*scoreboard.*")
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _espn_event(winner_name, loser_name, round_name="1st Round", completed=True):
     """Build a minimal ESPN event dict."""
     return {
         "name": f"{winner_name} vs {loser_name}",
         "status": {"type": {"completed": completed, "name": "STATUS_FINAL" if completed else "STATUS_IN_PROGRESS"}},
-        "competitions": [{
-            "competitors": [
-                {"winner": True, "team": {"displayName": winner_name}},
-                {"winner": False, "team": {"displayName": loser_name}},
-            ],
-            "notes": [{"headline": f"NCAA Men's Basketball Championship - East Region - {round_name}"}],
-            "type": {"text": "tournament"},
-        }],
+        "competitions": [
+            {
+                "competitors": [
+                    {"winner": True, "team": {"displayName": winner_name}},
+                    {"winner": False, "team": {"displayName": loser_name}},
+                ],
+                "notes": [{"headline": f"NCAA Men's Basketball Championship - East Region - {round_name}"}],
+                "type": {"text": "tournament"},
+            }
+        ],
     }
 
 
@@ -39,14 +42,16 @@ def _espn_event_incomplete(name="Game"):
     return {
         "name": name,
         "status": {"type": {"completed": False, "name": "STATUS_IN_PROGRESS"}},
-        "competitions": [{
-            "competitors": [
-                {"winner": False, "team": {"displayName": "Team A"}},
-                {"winner": False, "team": {"displayName": "Team B"}},
-            ],
-            "notes": [],
-            "type": {"text": "tournament"},
-        }],
+        "competitions": [
+            {
+                "competitors": [
+                    {"winner": False, "team": {"displayName": "Team A"}},
+                    {"winner": False, "team": {"displayName": "Team B"}},
+                ],
+                "notes": [],
+                "type": {"text": "tournament"},
+            }
+        ],
     }
 
 
@@ -54,13 +59,19 @@ def _espn_event_incomplete(name="Game"):
 # fetch_today_results
 # ---------------------------------------------------------------------------
 
+
 class TestFetchTodayResults:
     @pytest.mark.asyncio
     async def test_returns_completed_games(self):
         with aioresponses() as m:
-            m.get(ESPN_URL_PATTERN, payload={"events": [
-                _espn_event("Duke Blue Devils", "Vermont Catamounts"),
-            ]})
+            m.get(
+                ESPN_URL_PATTERN,
+                payload={
+                    "events": [
+                        _espn_event("Duke Blue Devils", "Vermont Catamounts"),
+                    ]
+                },
+            )
             results = await espn.fetch_today_results("20260319")
         assert len(results) == 1
         assert results[0]["winner"] == "Duke Blue Devils"
@@ -70,19 +81,29 @@ class TestFetchTodayResults:
     @pytest.mark.asyncio
     async def test_skips_incomplete_games(self):
         with aioresponses() as m:
-            m.get(ESPN_URL_PATTERN, payload={"events": [
-                _espn_event("Duke Blue Devils", "Vermont Catamounts"),
-                _espn_event_incomplete(),
-            ]})
+            m.get(
+                ESPN_URL_PATTERN,
+                payload={
+                    "events": [
+                        _espn_event("Duke Blue Devils", "Vermont Catamounts"),
+                        _espn_event_incomplete(),
+                    ]
+                },
+            )
             results = await espn.fetch_today_results("20260319")
         assert len(results) == 1
 
     @pytest.mark.asyncio
     async def test_round_from_headline(self):
         with aioresponses() as m:
-            m.get(ESPN_URL_PATTERN, payload={"events": [
-                _espn_event("Duke Blue Devils", "Vermont Catamounts", "Sweet 16"),
-            ]})
+            m.get(
+                ESPN_URL_PATTERN,
+                payload={
+                    "events": [
+                        _espn_event("Duke Blue Devils", "Vermont Catamounts", "Sweet 16"),
+                    ]
+                },
+            )
             results = await espn.fetch_today_results("20260319")
         assert results[0]["round"] == "Sweet 16"
 
@@ -108,12 +129,15 @@ class TestFetchTodayResults:
 # DS-4: fetch_tournament_results caching
 # ---------------------------------------------------------------------------
 
+
 def _make_mock_date(frozen_today):
     """Create a datetime.date subclass with a frozen today()."""
+
     class MockDate(datetime.date):
         @classmethod
         def today(cls):
             return frozen_today
+
     return MockDate
 
 
@@ -178,16 +202,19 @@ class TestFetchTournamentResults:
 # DS-5: ESPN tournament team name caching
 # ---------------------------------------------------------------------------
 
+
 class TestFetchTournamentTeamNames:
     @pytest.mark.asyncio
     async def test_fetches_and_caches(self):
         event = {
-            "competitions": [{
-                "competitors": [
-                    {"team": {"displayName": "Duke Blue Devils"}},
-                    {"team": {"displayName": "Vermont Catamounts"}},
-                ],
-            }],
+            "competitions": [
+                {
+                    "competitors": [
+                        {"team": {"displayName": "Duke Blue Devils"}},
+                        {"team": {"displayName": "Vermont Catamounts"}},
+                    ],
+                }
+            ],
         }
         with aioresponses() as m:
             # Two first-round dates — use repeat so both requests match
@@ -208,12 +235,14 @@ class TestFetchTournamentTeamNames:
     @pytest.mark.asyncio
     async def test_deduplicates_names(self):
         event = {
-            "competitions": [{
-                "competitors": [
-                    {"team": {"displayName": "Duke Blue Devils"}},
-                    {"team": {"displayName": "Duke Blue Devils"}},
-                ],
-            }],
+            "competitions": [
+                {
+                    "competitors": [
+                        {"team": {"displayName": "Duke Blue Devils"}},
+                        {"team": {"displayName": "Duke Blue Devils"}},
+                    ],
+                }
+            ],
         }
         with aioresponses() as m:
             m.get(ESPN_URL_PATTERN, payload={"events": [event]}, repeat=True)
@@ -224,12 +253,14 @@ class TestFetchTournamentTeamNames:
     async def test_handles_api_error_gracefully(self):
         """If one date fails, the other still works."""
         event = {
-            "competitions": [{
-                "competitors": [
-                    {"team": {"displayName": "Duke Blue Devils"}},
-                    {"team": {"displayName": "Vermont Catamounts"}},
-                ],
-            }],
+            "competitions": [
+                {
+                    "competitors": [
+                        {"team": {"displayName": "Duke Blue Devils"}},
+                        {"team": {"displayName": "Vermont Catamounts"}},
+                    ],
+                }
+            ],
         }
         with aioresponses() as m:
             m.get(ESPN_URL_PATTERN, exception=Exception("API down"))
