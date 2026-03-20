@@ -75,10 +75,6 @@ def init_db():
                 picks_json      TEXT NOT NULL,
                 submitted_at    TEXT NOT NULL
             );
-            CREATE TABLE IF NOT EXISTS digest_state (
-                key   TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
             CREATE TABLE IF NOT EXISTS guild_settings (
                 guild_id        INTEGER PRIMARY KEY,
                 taunt_channel_id INTEGER NOT NULL
@@ -129,14 +125,6 @@ def get_guild_brackets(guild_id: int) -> list[dict]:
     ]
 
 
-def get_digest_state(key: str) -> str | None:
-    with sqlite3.connect(DB_PATH) as con:
-        row = con.execute(
-            "SELECT value FROM digest_state WHERE key = ?", (key,)
-        ).fetchone()
-    return row[0] if row else None
-
-
 def set_guild_channel(guild_id: int, channel_id: int):
     with sqlite3.connect(DB_PATH) as con:
         con.execute(
@@ -154,10 +142,3 @@ def get_all_guild_channels() -> list[dict]:
     return [{"guild_id": r[0], "channel_id": r[1]} for r in rows]
 
 
-def set_digest_state(key: str, value: str):
-    with sqlite3.connect(DB_PATH) as con:
-        con.execute(
-            "INSERT INTO digest_state (key, value) VALUES (?, ?) "
-            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            (key, value),
-        )

@@ -106,12 +106,11 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 
 # --- digest helpers ---
 
-async def _run_digest(force: bool = False, guild_id: int | None = None) -> str | None:
+async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> str | None:
     """
-    Core digest logic. Posts a per-guild digest to each configured guild channel.
-    If guild_id is given, only process that guild (used by /testdigest).
-    Returns the last posted message, or None if skipped.
-    force=True bypasses the already-posted guard and skips marking as posted.
+    Core digest logic. Generates a per-guild digest message.
+    If guild_id is given, only process that guild.
+    broadcast=True posts to the configured channel; False returns the message only.
     """
     guild_channels = db.get_all_guild_channels()
     if not guild_channels:
@@ -134,11 +133,6 @@ async def _run_digest(force: bool = False, guild_id: int | None = None) -> str |
     last_message = None
     for gc in guild_channels:
         gid = gc["guild_id"]
-        state_key = f"digest_{gid}_{today}"
-
-        if not force and db.get_digest_state(state_key):
-            print(f"[digest] Guild {gid}: already posted today, skipping")
-            continue
 
         guild_brackets = db.get_guild_brackets(gid)
         print(f"[digest] Guild {gid}: {len(guild_brackets)} brackets on file")
@@ -193,12 +187,10 @@ async def _run_digest(force: bool = False, guild_id: int | None = None) -> str |
 
         print(f"[digest] Guild {gid}: sending to LLM with {len(submitters)} submitters")
         message = await generate_digest(submitters)
-        if not force:
+        if broadcast:
             channel = client.get_channel(gc["channel_id"])
             if channel:
                 await channel.send(message)
-        if not force:
-            db.set_digest_state(state_key, "posted")
         last_message = message
 
     return last_message
@@ -328,6 +320,22 @@ async def disshelp(interaction: discord.Interaction):
     )
 
 
+@client.tree.command(name="about", description="What is Demery Bot?")
+async def about(interaction: discord.Interaction):
+    await interaction.response.send_message(
+        "**Demery Bot** — March Madness trash talk, powered by AI and channeling "
+        "the energy of Demery, who never lets a bad bracket pick slide.\n\n"
+        "Demery watches your bracket, tracks every bust, and delivers the roasts "
+        "you deserve.\n\n"
+        "**Commands:**\n"
+        "- `/diss @user [intensity]` — Demery roasts someone's bracket picks\n"
+        "- `/submitbracket [image]` — upload a bracket screenshot so Demery knows your picks\n"
+        "- `/disshelp` — full usage guide and intensity levels\n\n"
+        "**Daily Digest:** Every day during the tournament, Demery posts a recap "
+        "calling out busted picks and praising survivors across all submitted brackets."
+    )
+
+
 @client.tree.command(name="setchannel", description="Set the channel for daily bracket digest posts")
 @app_commands.describe(channel="Tag the text channel (e.g. #march-madness)")
 @app_commands.default_permissions(manage_channels=True)
@@ -393,10 +401,10 @@ async def testdigest(interaction: discord.Interaction):
 
     await interaction.response.defer(ephemeral=True)
     try:
-        message = await _run_digest(force=True, guild_id=interaction.guild_id)
+        message = await _run_digest(broadcast=False, guild_id=interaction.guild_id)
         if message:
             await interaction.followup.send(
-                f"Digest posted:\n{message}", ephemeral=True
+                f"Digest preview:\n{message}", ephemeral=True
             )
         else:
             await interaction.followup.send(
