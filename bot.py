@@ -164,12 +164,34 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
             return None
 
     today = datetime.datetime.now(EASTERN).strftime("%Y%m%d")
+    today_date = datetime.datetime.now(EASTERN).date()
     print(f"[digest] Fetching games for {today} (Eastern)")
-    games = await espn.fetch_today_results(today)
-    print(f"[digest] ESPN returned {len(games)} completed games")
-    for g in games:
+
+    # 1. Fetch today's games from ESPN and persist them
+    today_games = await espn.fetch_today_results(today)
+    db.save_game_results(today, today_games)
+    print(f"[digest] ESPN returned {len(today_games)} completed games for today")
+
+    # 2. Backfill missing historical dates (first run after deploy or data loss)
+    tournament_start = datetime.date(2026, 3, 17)  # First Four
+    existing_dates = db.get_game_result_dates()
+    d = tournament_start
+    while d < today_date:
+        ds = d.strftime("%Y%m%d")
+        if ds not in existing_dates:
+            print(f"[digest] Backfilling {ds}")
+            historical_games = await espn.fetch_today_results(ds)
+            db.save_game_results(ds, historical_games)
+        d += datetime.timedelta(days=1)
+
+    # 3. Load ALL cumulative results from DB
+    all_results = db.get_all_game_results()
+    all_games = [{"winner": r["winner"], "loser": r["loser"], "round": r["round"]} for r in all_results]
+    print(f"[digest] {len(all_games)} total cumulative games in DB")
+
+    for g in today_games:
         tier = ROUND_NAME_TO_TIER.get(g["round"])
-        print(f"[digest]   {g['winner']} beat {g['loser']} | round='{g['round']}' → tier={tier}")
+        print(f"[digest]   Today: {g['winner']} beat {g['loser']} | round='{g['round']}' → tier={tier}")
 
     last_message = None
     for gc in guild_channels:
@@ -183,16 +205,21 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
             r32 = len(picks.get("round_of_32", []))
             champ = picks.get("champion")
             print(f"[digest]   User {entry['display_name']}: {r32} R32 picks, champion={champ}")
-            status = _compute_bracket_status(picks, games)
-            busts = status["busts"]
-            survivors = status["survivors"]
-            print(f"[digest]   → {entry['display_name']}: {len(busts)} busts, {len(survivors)} survivors")
+            cumulative_status = _compute_bracket_status(picks, all_games)
+            today_status = _compute_bracket_status(picks, today_games)
+            print(
+                f"[digest]   → {entry['display_name']}: "
+                f"{len(cumulative_status['busts'])} total busts ({len(today_status['busts'])} today), "
+                f"{len(cumulative_status['survivors'])} total survivors ({len(today_status['survivors'])} today)"
+            )
             submitters.append(
                 {
                     "mention": f"<@{entry['discord_user_id']}>",
                     "name": entry["display_name"],
-                    "busts": busts,
-                    "survivors": survivors,
+                    "busts": cumulative_status["busts"],
+                    "survivors": cumulative_status["survivors"],
+                    "today_busts": today_status["busts"],
+                    "today_survivors": today_status["survivors"],
                 }
             )
 

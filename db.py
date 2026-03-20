@@ -131,3 +131,26 @@ def get_all_guild_channels() -> list[dict]:
     with sqlite3.connect(DB_PATH) as con:
         rows = con.execute("SELECT guild_id, taunt_channel_id FROM guild_settings").fetchall()
     return [{"guild_id": r[0], "channel_id": r[1]} for r in rows]
+
+
+def save_game_results(date_str: str, games: list[dict]):
+    """Persist ESPN game results for a date. Idempotent via INSERT OR IGNORE."""
+    with sqlite3.connect(DB_PATH) as con:
+        con.executemany(
+            "INSERT OR IGNORE INTO game_results (game_date, winner, loser, round) VALUES (?, ?, ?, ?)",
+            [(date_str, g["winner"], g["loser"], g["round"]) for g in games],
+        )
+
+
+def get_all_game_results() -> list[dict]:
+    """Load all persisted game results across all dates."""
+    with sqlite3.connect(DB_PATH) as con:
+        rows = con.execute("SELECT game_date, winner, loser, round FROM game_results ORDER BY game_date").fetchall()
+    return [{"game_date": r[0], "winner": r[1], "loser": r[2], "round": r[3]} for r in rows]
+
+
+def get_game_result_dates() -> set[str]:
+    """Return the set of date strings that have stored game results."""
+    with sqlite3.connect(DB_PATH) as con:
+        rows = con.execute("SELECT DISTINCT game_date FROM game_results").fetchall()
+    return {r[0] for r in rows}

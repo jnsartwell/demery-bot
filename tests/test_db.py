@@ -122,6 +122,70 @@ class TestPerGuildBrackets:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# US-9: Game results persistence
+# ---------------------------------------------------------------------------
+
+
+class TestGameResults:
+    def test_creates_game_results_table(self, tmp_db):
+        with sqlite3.connect(tmp_db) as con:
+            tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        assert "game_results" in tables
+
+    def test_save_and_load(self, tmp_db):
+        games = [
+            {"winner": "Duke Blue Devils", "loser": "Vermont Catamounts", "round": "1st Round"},
+            {"winner": "Kansas Jayhawks", "loser": "Norfolk State Spartans", "round": "1st Round"},
+        ]
+        db.save_game_results("20260319", games)
+        results = db.get_all_game_results()
+        assert len(results) == 2
+        winners = {r["winner"] for r in results}
+        assert "Duke Blue Devils" in winners
+        assert "Kansas Jayhawks" in winners
+
+    def test_save_multiple_dates(self, tmp_db):
+        day1 = [{"winner": "Duke Blue Devils", "loser": "Vermont Catamounts", "round": "1st Round"}]
+        day2 = [{"winner": "Kansas Jayhawks", "loser": "Norfolk State Spartans", "round": "2nd Round"}]
+        db.save_game_results("20260319", day1)
+        db.save_game_results("20260320", day2)
+        results = db.get_all_game_results()
+        assert len(results) == 2
+        dates = {r["game_date"] for r in results}
+        assert dates == {"20260319", "20260320"}
+
+    def test_save_idempotent(self, tmp_db):
+        games = [{"winner": "Duke Blue Devils", "loser": "Vermont Catamounts", "round": "1st Round"}]
+        db.save_game_results("20260319", games)
+        db.save_game_results("20260319", games)  # same data again
+        results = db.get_all_game_results()
+        assert len(results) == 1
+
+    def test_get_game_result_dates(self, tmp_db):
+        db.save_game_results("20260319", [{"winner": "A", "loser": "B", "round": "1st Round"}])
+        db.save_game_results("20260320", [{"winner": "C", "loser": "D", "round": "2nd Round"}])
+        dates = db.get_game_result_dates()
+        assert dates == {"20260319", "20260320"}
+
+    def test_empty_games_list(self, tmp_db):
+        db.save_game_results("20260319", [])
+        results = db.get_all_game_results()
+        assert results == []
+
+    def test_results_ordered_by_date(self, tmp_db):
+        db.save_game_results("20260320", [{"winner": "B", "loser": "D", "round": "2nd Round"}])
+        db.save_game_results("20260319", [{"winner": "A", "loser": "C", "round": "1st Round"}])
+        results = db.get_all_game_results()
+        assert results[0]["game_date"] == "20260319"
+        assert results[1]["game_date"] == "20260320"
+
+
+# ---------------------------------------------------------------------------
+# Guild channel settings
+# ---------------------------------------------------------------------------
+
+
 class TestGuildChannelSettings:
     def test_set_and_get(self, tmp_db):
         db.set_guild_channel(9001, 5001)

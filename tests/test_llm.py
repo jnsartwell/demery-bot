@@ -39,7 +39,7 @@ class TestSystemPrompt:
         assert "harsh" in llm.SYSTEM_PROMPT
 
     def test_contains_friend_tone(self):
-        assert "friend busting chops" in llm.SYSTEM_PROMPT
+        assert "teasing with a grin" in llm.SYSTEM_PROMPT
 
 
 # ---------------------------------------------------------------------------
@@ -179,22 +179,43 @@ class TestGenerateDigest:
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "No games were played today" in user_content
+        assert "No games have been played yet" in user_content
 
     @pytest.mark.asyncio
-    async def test_activity_context(self, mock_anthropic):
+    async def test_activity_context_with_today(self, mock_anthropic):
+        """When there are today's busts, context focuses on today's events."""
         submitters = [
             {
                 "mention": "<@1>",
                 "name": "A",
                 "busts": [{"team": "X", "picked_to_reach": "sweet_16", "lost_in": "1st Round"}],
                 "survivors": [],
+                "today_busts": [{"team": "X", "picked_to_reach": "sweet_16", "lost_in": "1st Round"}],
+                "today_survivors": [],
             }
         ]
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "how everyone's bracket is looking" in user_content
+
+    @pytest.mark.asyncio
+    async def test_activity_context_cumulative_only(self, mock_anthropic):
+        """When there's cumulative history but no today activity, context acknowledges both."""
+        submitters = [
+            {
+                "mention": "<@1>",
+                "name": "A",
+                "busts": [{"team": "X", "picked_to_reach": "sweet_16", "lost_in": "1st Round"}],
+                "survivors": [],
+                "today_busts": [],
+                "today_survivors": [],
+            }
+        ]
+        await llm.generate_digest(submitters)
+        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
+        user_content = call_kwargs["messages"][0]["content"]
+        assert "already done some damage" in user_content
 
     @pytest.mark.asyncio
     async def test_prompt_requests_natural_style(self, mock_anthropic):

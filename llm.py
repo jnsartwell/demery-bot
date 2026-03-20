@@ -8,20 +8,20 @@ import anthropic
 client = anthropic.AsyncAnthropic()
 
 SYSTEM_PROMPT = """\
-You are Demery — sharp, hilarious, and a passionate March Madness fanatic.
-You love your friends deeply, which is exactly why you won't let them get away
-with having bad bracket energy. You talk like a real person: casual, punchy,
-rarely ALL CAPS — only when something truly deserves it. Reference general
-bracket wisdom ("everyone knows you never pick against a hot mid-major"),
-make it feel personal even without specifics, and end with something that stings
-just a little. Keep it to 2-3 sentences max. Keep it clean — no profanity, no
-slurs, nothing that would make HR uncomfortable. You're a friend busting chops,
-not a roast battle opponent — sharp wit with a wink, not scorched earth.
+You are Demery — funny, quick-witted, and an obsessive March Madness fanatic.
+You're the guy in the group chat who won't let a bad bracket pick slide.
+You talk like a real person: casual, punchy, rarely ALL CAPS — only when
+something truly deserves it. Reference general bracket wisdom ("everyone knows
+you never pick against a hot mid-major"), make it feel personal even without
+specifics, and always leave them laughing more than wincing. Keep it to
+2-3 sentences max. Keep it clean — no profanity, no slurs, nothing that would
+make HR uncomfortable. You're the friend who makes the group chat fun —
+teasing with a grin, not trying to hurt feelings.
 
 Intensity levels:
-- mild: light, affectionate ribbing — almost a compliment if you squint
-- medium: sharp and fun; the kind of thing that gets a laugh and a groan
-- harsh: the most pointed you get — but it still lands with a wink, not a wound\
+- mild: friendly teasing — basically a compliment disguised as a joke
+- medium: playful and pointed; the kind of thing that gets a laugh and an eye roll
+- harsh: your sharpest material — but it's still clearly coming from a friend, not an enemy\
 """
 
 
@@ -53,7 +53,7 @@ async def generate_taunt(
                 f"- {s['team']} (still alive through {s['still_alive_through']})" for s in results["survivors"]
             ]
             content += "\n\nSurvivors still alive:\n" + "\n".join(surv_lines)
-        content += "\n\nUse the tournament results to make the roast hit harder — busted picks are prime material."
+        content += "\n\nUse the tournament results to make it funnier — busted picks are prime material for teasing."
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=200,
@@ -279,20 +279,35 @@ async def generate_digest(submitters: list[dict]) -> str:
     lines = []
     for s in submitters:
         parts = [f"{s['mention']} ({s['name']})"]
+        today_busts = s.get("today_busts", [])
+        today_survivors = s.get("today_survivors", [])
+        if today_busts:
+            bust_strs = [
+                f"{b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})" for b in today_busts
+            ]
+            parts.append("TODAY'S BUSTS: " + "; ".join(bust_strs))
+        if today_survivors:
+            surv_strs = [f"{sv['team']} (still alive through {sv['still_alive_through']})" for sv in today_survivors]
+            parts.append("TODAY'S SURVIVORS: " + "; ".join(surv_strs))
         if s["busts"]:
             bust_strs = [
                 f"{b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})" for b in s["busts"]
             ]
-            parts.append("Busts: " + "; ".join(bust_strs))
+            parts.append("ALL BUSTS (cumulative): " + "; ".join(bust_strs))
         if s["survivors"]:
             survivor_strs = [f"{sv['team']} (still alive through {sv['still_alive_through']})" for sv in s["survivors"]]
-            parts.append("Survivors: " + "; ".join(survivor_strs))
+            parts.append("ALL SURVIVORS (cumulative): " + "; ".join(survivor_strs))
         if not s["busts"] and not s["survivors"]:
-            parts.append("No bracket activity today")
+            parts.append("No bracket activity yet")
         lines.append(" | ".join(parts))
 
     for s in submitters:
-        print(f"Digest data: {s['name']} — busts={len(s['busts'])} survivors={len(s['survivors'])}")
+        today_b = len(s.get("today_busts", []))
+        today_s = len(s.get("today_survivors", []))
+        print(
+            f"Digest data: {s['name']} — busts={len(s['busts'])} (today={today_b}) "
+            f"survivors={len(s['survivors'])} (today={today_s})"
+        )
         for b in s["busts"]:
             print(f"  BUST: {b}")
         for sv in s["survivors"]:
@@ -302,12 +317,20 @@ async def generate_digest(submitters: list[dict]) -> str:
     for s in submitters:
         print(f"[digest-llm]   {s['name']}: {len(s['busts'])} busts, {len(s['survivors'])} survivors")
 
-    all_quiet = all(not s["busts"] and not s["survivors"] for s in submitters)
-    context = (
-        "No games were played today — brackets are untouched."
-        if all_quiet
-        else "Here's how everyone's bracket is looking after today's games."
-    )
+    today_quiet = all(not s.get("today_busts") and not s.get("today_survivors") for s in submitters)
+    has_history = any(s["busts"] or s["survivors"] for s in submitters)
+    if today_quiet and not has_history:
+        context = "No games have been played yet — brackets are untouched."
+    elif today_quiet and has_history:
+        context = (
+            "Today's games haven't finished yet (or there are none today), but the tournament "
+            "has already done some damage. Here's where everyone's bracket stands so far."
+        )
+    else:
+        context = (
+            "Here's how everyone's bracket is looking. Focus the narrative on TODAY'S new busts "
+            "and survivors, but use the cumulative status for overall context."
+        )
     content = (
         f"{context} Bracket status:\n\n" + "\n".join(lines) + "\n\nWrite a Demery-style daily bracket update. "
         "Write it like a real person typing in a Discord channel — "
@@ -315,11 +338,13 @@ async def generate_digest(submitters: list[dict]) -> str:
         "Open with a fresh, varied line that fits the vibe — don't always start the same way. "
         "Mention each person using their EXACT Discord tag (e.g. <@123456>) — "
         "copy it verbatim, do not replace it with a name or @username. "
-        "For busts: roast them with context — if you had a team going to the championship "
-        "and they lost in the Elite Eight, that's richer material than a generic loss. "
-        "For survivors: sarcastically praise them like they don't deserve it. "
-        "For anyone with no activity: give a backhanded 'somehow still intact' acknowledgement. "
-        "If no games were played, keep it short and pointed — acknowledge the calm before the storm. "
+        "For today's busts: tease them about it — if they had a team going to the championship "
+        "and they lost in the Elite Eight, that's funnier than a generic loss. "
+        "For older cumulative busts: reference them as background damage, not the main event. "
+        "For today's survivors: give them playful, begrudging credit. "
+        "For anyone with no new activity today: give a backhanded 'somehow still intact' acknowledgement. "
+        "If no games were played today but there's tournament history, give a brief check-in on "
+        "the overall bracket carnage so far. "
         "One or two punchy sentences per person. Address ALL submitters — no one gets skipped."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")

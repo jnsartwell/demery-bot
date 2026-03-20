@@ -125,8 +125,14 @@ recap in my server's configured digest channel during the tournament.
 
 Acceptance criteria:
 - The digest fires once per day at TAUNT_HOUR (UTC).
-- It fetches that day's completed ESPN game results and compares them
-  against every stored bracket in each guild.
+- It fetches that day's completed ESPN game results and persists them
+  to the `game_results` table in SQLite. On first run (or after data
+  loss), it backfills historical dates from tournament start.
+- Bracket status is computed against ALL cumulative tournament results,
+  not just today's games. A bust from Day 1 remains visible on Day 5.
+- The digest distinguishes today's new busts/survivors from cumulative
+  status so the narrative focuses on what just happened while
+  reflecting overall bracket health.
 - For each submitter: busted picks include "picked to reach X, lost
   in Y" context; survivors include the round they're still alive
   through.

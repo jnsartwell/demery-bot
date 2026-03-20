@@ -150,6 +150,178 @@ class TestRunDigest:
 
 
 # ---------------------------------------------------------------------------
+# US-9: Cumulative tournament results in digest
+# ---------------------------------------------------------------------------
+
+
+class TestCumulativeDigest:
+    @pytest.mark.asyncio
+    async def test_digest_uses_cumulative_results(self, sample_picks, monkeypatch, mock_anthropic):
+        """Busts from previous days appear in cumulative status, not just today's."""
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
+
+        # Yesterday: Kentucky busted (pre-populated in DB)
+        db.save_game_results(
+            "20260319", [{"winner": "Saint Peter's Peacocks", "loser": "Kentucky Wildcats", "round": "1st Round"}]
+        )
+
+        # Today: Gonzaga busted
+        today_games = [{"winner": "Some Team", "loser": "Gonzaga Bulldogs", "round": "2nd Round"}]
+        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=today_games))
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
+            await bot._run_digest(broadcast=False, guild_id=9001)
+            submitters = mock_gen.call_args[0][0]
+            alice = submitters[0]
+
+            # Cumulative busts include BOTH yesterday's and today's
+            bust_teams = {b["team"] for b in alice["busts"]}
+            assert "Kentucky Wildcats" in bust_teams
+            assert "Gonzaga Bulldogs" in bust_teams
+
+    @pytest.mark.asyncio
+    async def test_digest_distinguishes_today_from_cumulative(self, sample_picks, monkeypatch, mock_anthropic):
+        """today_busts contains only today's new busts, not historical ones."""
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
+
+        # Yesterday's bust already in DB
+        db.save_game_results(
+            "20260319", [{"winner": "Saint Peter's Peacocks", "loser": "Kentucky Wildcats", "round": "1st Round"}]
+        )
+
+        # Today: Gonzaga busts
+        today_games = [{"winner": "Some Team", "loser": "Gonzaga Bulldogs", "round": "2nd Round"}]
+        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=today_games))
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
+            await bot._run_digest(broadcast=False, guild_id=9001)
+            submitters = mock_gen.call_args[0][0]
+            alice = submitters[0]
+
+            # Today's busts: only Gonzaga
+            today_bust_teams = {b["team"] for b in alice["today_busts"]}
+            assert "Gonzaga Bulldogs" in today_bust_teams
+            assert "Kentucky Wildcats" not in today_bust_teams
+
+    @pytest.mark.asyncio
+    async def test_digest_persists_today_results(self, sample_picks, monkeypatch, mock_anthropic):
+        """After running digest, today's games are saved to game_results table."""
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
+
+        # Fix date to March 19 so backfill only covers March 17-18
+        et_time = datetime.datetime(2026, 3, 19, 12, 0, 0, tzinfo=bot.EASTERN)
+
+        class MockDatetime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return et_time
+
+        monkeypatch.setattr(bot.datetime, "datetime", MockDatetime)
+
+        today_games = [{"winner": "Duke Blue Devils", "loser": "Vermont Catamounts", "round": "1st Round"}]
+
+        async def mock_fetch(date_str):
+            if date_str == "20260319":
+                return today_games
+            return []
+
+        monkeypatch.setattr(espn, "fetch_today_results", mock_fetch)
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        await bot._run_digest(broadcast=False, guild_id=9001)
+
+        # Verify today's games were persisted
+        results = db.get_all_game_results()
+        today_results = [r for r in results if r["game_date"] == "20260319"]
+        assert len(today_results) == 1
+        assert today_results[0]["winner"] == "Duke Blue Devils"
+
+    @pytest.mark.asyncio
+    async def test_digest_backfills_missing_dates(self, sample_picks, monkeypatch, mock_anthropic):
+        """On first run with empty DB, digest backfills historical dates from ESPN."""
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
+
+        # Mock: today is March 19, tournament started March 17
+        et_time = datetime.datetime(2026, 3, 19, 12, 0, 0, tzinfo=bot.EASTERN)
+
+        class MockDatetime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return et_time
+
+        monkeypatch.setattr(bot.datetime, "datetime", MockDatetime)
+
+        fetched_dates = []
+
+        async def capture_fetch(date_str):
+            fetched_dates.append(date_str)
+            if date_str == "20260317":
+                return [{"winner": "A", "loser": "B", "round": "First Four"}]
+            if date_str == "20260318":
+                return [{"winner": "C", "loser": "D", "round": "First Four"}]
+            if date_str == "20260319":
+                return [{"winner": "Duke Blue Devils", "loser": "Vermont Catamounts", "round": "1st Round"}]
+            return []
+
+        monkeypatch.setattr(espn, "fetch_today_results", capture_fetch)
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        await bot._run_digest(broadcast=False, guild_id=9001)
+
+        # Should have fetched today + backfilled March 17 and 18
+        assert "20260319" in fetched_dates
+        assert "20260317" in fetched_dates
+        assert "20260318" in fetched_dates
+
+        # All dates should be persisted
+        stored_dates = db.get_game_result_dates()
+        assert "20260317" in stored_dates
+        assert "20260318" in stored_dates
+        assert "20260319" in stored_dates
+
+    @pytest.mark.asyncio
+    async def test_digest_skips_backfill_when_history_exists(self, sample_picks, monkeypatch, mock_anthropic):
+        """If historical dates already exist in DB, backfill does not re-fetch them."""
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
+
+        # Pre-populate historical dates
+        db.save_game_results("20260317", [{"winner": "A", "loser": "B", "round": "First Four"}])
+        db.save_game_results("20260318", [{"winner": "C", "loser": "D", "round": "First Four"}])
+
+        et_time = datetime.datetime(2026, 3, 19, 12, 0, 0, tzinfo=bot.EASTERN)
+
+        class MockDatetime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return et_time
+
+        monkeypatch.setattr(bot.datetime, "datetime", MockDatetime)
+
+        fetched_dates = []
+
+        async def capture_fetch(date_str):
+            fetched_dates.append(date_str)
+            return []
+
+        monkeypatch.setattr(espn, "fetch_today_results", capture_fetch)
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        await bot._run_digest(broadcast=False, guild_id=9001)
+
+        # Only today should be fetched, not the backfill dates
+        assert "20260319" in fetched_dates
+        assert "20260317" not in fetched_dates
+        assert "20260318" not in fetched_dates
+
+
+# ---------------------------------------------------------------------------
 # DS-13: Eastern time for game dates
 # ---------------------------------------------------------------------------
 
