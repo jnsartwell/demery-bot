@@ -57,7 +57,7 @@ ruff check --fix        # auto-fix lint issues (e.g. unused imports)
 python -m pytest tests/ -v
 ```
 
-- **128 tests** covering all user stories and dev stories in `REQUIREMENTS.txt`
+- **128 tests** covering all user stories and dev stories in `STORIES.md`
 - Tests mock all external APIs (Anthropic, ESPN, Discord) — no network access needed
 - Each test gets a fresh temp SQLite database (no cleanup required)
 - Tests must pass before deploy (enforced by CI)
