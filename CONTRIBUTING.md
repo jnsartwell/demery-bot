@@ -10,6 +10,8 @@
 ## Local Development
 
 ```bash
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env  # fill in values
 python bot.py
@@ -23,12 +25,24 @@ python bot.py
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `DISCORD_BOT_APPLICATION_ID` | Discord application ID (integer) |
 | `DISCORD_GUILD_ID` | Comma-separated guild IDs for instant slash command sync (optional) |
+| `DB_PATH` | SQLite path; set to `./brackets.db` locally (defaults to `/data/brackets.db` for Fly.io) |
+
+## Testing
+
+```bash
+python -m pytest tests/ -v
+```
+
+- **128 tests** covering all user stories and dev stories in `REQUIREMENTS.txt`
+- Tests mock all external APIs (Anthropic, ESPN, Discord) — no network access needed
+- Each test gets a fresh temp SQLite database (no cleanup required)
+- Tests must pass before deploy (enforced by CI)
 
 ## Deploy
 
 Trigger manually via **Actions → Deploy to Fly.io → Run workflow**.
 
-The workflow creates the Fly.io app on first run, syncs all secrets/vars, and deploys a single machine to Fly.io.
+The workflow runs tests first — if any test fails, the deploy is blocked. On success, it syncs all secrets/vars and deploys a single machine to Fly.io.
 
 ### GitHub Secrets & Variables
 

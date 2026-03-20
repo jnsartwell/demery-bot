@@ -447,4 +447,5 @@ async def pushdigest(interaction: discord.Interaction):
         await interaction.followup.send(f"Error: {e}", ephemeral=True)
 
 
-client.run(DISCORD_BOT_TOKEN)
+if __name__ == "__main__":
+    client.run(DISCORD_BOT_TOKEN)
