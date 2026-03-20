@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 CLAUDE.md
 session_summary.md
+docs/progress.md

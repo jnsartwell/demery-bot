@@ -22,6 +22,14 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v --tb=short
 
+      - name: Install gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
+            | tar xz -C /usr/local/bin gitleaks
+
+      - name: Scan for secrets
+        run: gitleaks detect --source . --verbose
+
   deploy:
     needs: test
     runs-on: ubuntu-latest

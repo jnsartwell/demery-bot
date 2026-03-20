@@ -15,4 +15,11 @@ ruff format --check
 echo "  Tests..."
 python -m pytest tests/ -q
 
+echo "  Secret scan..."
+if command -v gitleaks &> /dev/null; then
+    gitleaks detect --source . --verbose
+else
+    echo "    gitleaks not installed, skipping (install: brew install gitleaks)"
+fi
+
 echo "All checks passed."

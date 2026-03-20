@@ -35,7 +35,9 @@ After cloning, point git at the repo's hooks directory:
 git config core.hooksPath .githooks
 ```
 
-This runs lint + tests automatically before every commit. If either fails, the commit is blocked.
+This runs lint, tests, and secret scanning automatically before every commit. If any check fails, the commit is blocked.
+
+> **Note:** Secret scanning requires [gitleaks](https://github.com/gitleaks/gitleaks) to be installed locally (`brew install gitleaks` or see their releases page). If not installed, the hook skips the scan with a warning.
 
 ## Linting
 
@@ -64,7 +66,9 @@ python -m pytest tests/ -v
 
 Trigger manually via **Actions → Deploy to Fly.io → Run workflow**.
 
-The workflow runs lint and tests first — if either fails, the deploy is blocked. On success, it syncs all secrets/vars and deploys a single machine to Fly.io.
+The workflow runs lint, tests, and secret scanning first — if any fail, the deploy is blocked. On success, it syncs all secrets/vars and deploys a single machine to Fly.io.
+
+A separate **CI** workflow (`ci.yml`) runs on every push to `main` and on pull requests — it runs lint, tests, and secret scanning in parallel.
 
 ### GitHub Secrets & Variables
 
