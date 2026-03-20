@@ -193,9 +193,10 @@ async def _run_digest(force: bool = False, guild_id: int | None = None) -> str |
 
         print(f"[digest] Guild {gid}: sending to LLM with {len(submitters)} submitters")
         message = await generate_digest(submitters)
-        channel = client.get_channel(gc["channel_id"])
-        if channel:
-            await channel.send(message)
+        if not force:
+            channel = client.get_channel(gc["channel_id"])
+            if channel:
+                await channel.send(message)
         if not force:
             db.set_digest_state(state_key, "posted")
         last_message = message
