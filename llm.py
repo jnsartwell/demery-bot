@@ -29,6 +29,7 @@ async def generate_taunt(
     target_name: str,
     intensity: str,
     bracket_data: dict | None = None,
+    results: dict | None = None,
 ) -> str:
     content = f"Taunt {target_name} at {intensity} intensity."
     if bracket_data:
@@ -40,9 +41,17 @@ async def generate_taunt(
             f"\n- Elite Eight: {', '.join(bracket_data['elite_eight'])}"
             f"\n\nMake the roast specific to their picks where it's funny."
         )
+    if results:
+        if results["busts"]:
+            bust_lines = [f"- {b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})" for b in results["busts"]]
+            content += "\n\nBusted bracket picks so far:\n" + "\n".join(bust_lines)
+        if results["survivors"]:
+            surv_lines = [f"- {s['team']} (still alive through {s['still_alive_through']})" for s in results["survivors"]]
+            content += "\n\nSurvivors still alive:\n" + "\n".join(surv_lines)
+        content += "\n\nUse the tournament results to make the roast hit harder — busted picks are prime material."
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=150,
+        max_tokens=200,
         system=[
             {
                 "type": "text",

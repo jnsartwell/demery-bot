@@ -1,3 +1,5 @@
+import datetime
+
 import aiohttp
 
 ESPN_SCOREBOARD_API = (
@@ -47,6 +49,27 @@ async def fetch_tournament_team_names() -> list[str]:
     _cached_team_names = sorted(teams)
     print(f"Cached {len(_cached_team_names)} ESPN tournament team names")
     return _cached_team_names
+
+
+_cached_results: dict[str, list[dict]] = {}
+
+
+async def fetch_tournament_results() -> list[dict]:
+    """Fetch all completed tournament games from start through today."""
+    start = datetime.date(2026, 3, 17)  # First Four
+    today = datetime.date.today()
+    all_games = []
+    d = start
+    while d <= today:
+        date_str = d.strftime("%Y%m%d")
+        if date_str in _cached_results and d < today:
+            all_games.extend(_cached_results[date_str])
+        else:
+            games = await fetch_today_results(date_str)
+            _cached_results[date_str] = games
+            all_games.extend(games)
+        d += datetime.timedelta(days=1)
+    return all_games
 
 
 async def fetch_today_results(date_str: str) -> list[dict]:

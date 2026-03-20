@@ -104,7 +104,42 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     print(f"Command error in '{interaction.command.name if interaction.command else 'unknown'}': {type(error).__name__}: {error}")
 
 
-# --- digest helpers ---
+# --- helpers ---
+
+def _compute_bracket_status(picks: dict, games: list[dict]) -> dict:
+    """Returns {"busts": [...], "survivors": [...]} for one user's picks against game results."""
+    busts, survivors = [], []
+    for game in games:
+        tier = ROUND_NAME_TO_TIER.get(game["round"])
+        if not tier:
+            continue
+        idx = ROUND_TIER_ORDER.index(tier)
+        tiers_at_or_beyond = ROUND_TIER_ORDER[idx:]
+        picked_teams = set()
+        for t in tiers_at_or_beyond:
+            val = picks.get(t, [])
+            picked_teams.update([val] if isinstance(val, str) else val)
+        loser_match = game["loser"] in picked_teams
+        winner_match = game["winner"] in picked_teams
+        if loser_match:
+            furthest = next(
+                (t for t in reversed(ROUND_TIER_ORDER) if game["loser"] in (
+                    [picks[t]] if isinstance(picks.get(t), str) else picks.get(t, [])
+                )),
+                tier,
+            )
+            busts.append({
+                "team": game["loser"],
+                "picked_to_reach": furthest,
+                "lost_in": game["round"],
+            })
+        if winner_match:
+            survivors.append({
+                "team": game["winner"],
+                "still_alive_through": game["round"],
+            })
+    return {"busts": busts, "survivors": survivors}
+
 
 async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> str | None:
     """
@@ -140,39 +175,9 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
         for entry in guild_brackets:
             picks = entry["picks"]
             print(f"[digest]   User {entry['display_name']}: {len(picks.get('round_of_32', []))} R32 picks, champion={picks.get('champion')}")
-            busts, survivors = [], []
-            for game in games:
-                tier = ROUND_NAME_TO_TIER.get(game["round"])
-                if not tier:
-                    print(f"[digest]     SKIP: unrecognized round '{game['round']}'")
-                    continue
-                idx = ROUND_TIER_ORDER.index(tier)
-                tiers_at_or_beyond = ROUND_TIER_ORDER[idx:]
-                picked_teams = set()
-                for t in tiers_at_or_beyond:
-                    val = picks.get(t, [])
-                    picked_teams.update([val] if isinstance(val, str) else val)
-                loser_match = game["loser"] in picked_teams
-                winner_match = game["winner"] in picked_teams
-                if loser_match or winner_match:
-                    print(f"[digest]     {game['winner']} vs {game['loser']}: loser_picked={loser_match} winner_picked={winner_match}")
-                if loser_match:
-                    furthest = next(
-                        (t for t in reversed(ROUND_TIER_ORDER) if game["loser"] in (
-                            [picks[t]] if isinstance(picks.get(t), str) else picks.get(t, [])
-                        )),
-                        tier,
-                    )
-                    busts.append({
-                        "team": game["loser"],
-                        "picked_to_reach": furthest,
-                        "lost_in": game["round"],
-                    })
-                if winner_match:
-                    survivors.append({
-                        "team": game["winner"],
-                        "still_alive_through": game["round"],
-                    })
+            status = _compute_bracket_status(picks, games)
+            busts = status["busts"]
+            survivors = status["survivors"]
             print(f"[digest]   → {entry['display_name']}: {len(busts)} busts, {len(survivors)} survivors")
             submitters.append({
                 "mention": f"<@{entry['discord_user_id']}>",
@@ -247,7 +252,12 @@ async def taunt(
 
     await interaction.response.defer()
     bracket_data = db.get_bracket(user.id, interaction.guild_id)
-    taunt_text = await generate_taunt(user.display_name, intensity_value, bracket_data)
+    results = None
+    if bracket_data:
+        games = await espn.fetch_tournament_results()
+        if games:
+            results = _compute_bracket_status(bracket_data, games)
+    taunt_text = await generate_taunt(user.display_name, intensity_value, bracket_data, results)
     await interaction.followup.send(f"{user.mention} {taunt_text}")
 
 
