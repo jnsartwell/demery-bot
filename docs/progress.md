@@ -73,3 +73,63 @@ All code written, committed, and pushed to `main`. Bot is live on Fly.io.
 - ESPN API integration for real game results
 - Scheduled auto-taunts after game results post
 - Discord button components: Regenerate / Harsher / Milder
+
+---
+
+## Session 3 — 2026-03-18 (cost, rate limiting, setchannel, digest polish)
+
+See `session_summary.md` for full details. Key changes:
+- Submission rate limiting (3/day in-memory)
+- `setchannel` lowered to `manage_channels` permission, added logging
+- Global error handlers on command tree and client
+- Digest prompt: varied intros, no-games-today handling, full-stack testdigest (no early exit)
+- Cost analysis: Sonnet vision ~$0.01-0.02/submission, Haiku negligible
+- Active bug: `setchannel` TransformerError on friends' server (stale command registration suspected)
+
+---
+
+## Session 4 — 2026-03-18 (per-guild scoping, setchannel fix)
+
+### Changes Made
+
+#### `db.py`
+- `brackets` table: composite PK `(discord_user_id, guild_id)` — brackets are now per-guild
+- `guild_settings` table: per-guild channel config for digest posting
+- All bracket DB calls now take `guild_id` parameter
+
+#### `bot.py`
+- All `/diss`, `/submitbracket` calls pass `interaction.guild_id` through to DB
+- `_run_digest()` iterates `db.get_all_guild_channels()` and processes each guild independently
+- `/setchannel` changed from `discord.TextChannel` param to `str` param with manual parsing (mention, raw ID, or name) — fixes TransformerError
+
+#### Migration
+- `migrations/20260319_001_add_guild_id_to_brackets.sql` — drops and recreates brackets table with guild_id
+
+---
+
+## Session 5 — 2026-03-19 (logging, timezone fix, testdigest ephemeral)
+
+### Bugs Fixed
+
+**No logs visible in Fly.io:**
+- Root cause: Python buffers stdout in Docker containers by default
+- Fix: `Dockerfile` CMD changed to `["python", "-u", "bot.py"]`
+
+**Digest showing 0 completed games despite finished games:**
+- Root cause: UTC had rolled past midnight (March 20) while EDT was still March 19 evening with completed games
+- Fix: Use `zoneinfo.ZoneInfo("America/New_York")` for date calculation in `_run_digest()` and submission rate limiter
+- ESPN scoreboard API is date-scoped — wrong date = wrong games
+
+**`/testdigest` broadcasting to channel:**
+- Fix: Moved `channel.send(message)` inside `if not force:` block so test digests are ephemeral-only
+
+### Key Design Decision
+- March Madness games run on Eastern time — all date-scoped logic (digest date, rate limiter) uses `America/New_York` timezone, not UTC
+
+### Commits
+- `e16ee43` — unbuffer Python stdout (`python -u`)
+- `c437a17` — use Eastern time for game dates
+- `a506ecd` — skip channel broadcast for `/testdigest`
+
+### Pending
+- **Add game results to `/diss`**: Disses should account for tournament results — busted picks get roasted, surviving picks get sarcastic acknowledgement. Work started (extract `_analyze_picks` helper) but stashed to focus on digest debugging.

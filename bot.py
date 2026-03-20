@@ -407,4 +407,26 @@ async def testdigest(interaction: discord.Interaction):
         await interaction.followup.send(f"Error: {e}", ephemeral=True)
 
 
+@client.tree.command(name="pushdigest", description="[Dev] Broadcast the daily digest to the channel now")
+async def pushdigest(interaction: discord.Interaction):
+    if interaction.user.id not in BYPASS_USER_IDS:
+        await interaction.response.send_message("Not for you.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+    try:
+        message = await _run_digest(guild_id=interaction.guild_id)
+        if message:
+            await interaction.followup.send(
+                f"Digest pushed to channel:\n{message}", ephemeral=True
+            )
+        else:
+            await interaction.followup.send(
+                "Nothing to post — no completed games today or no brackets on file.",
+                ephemeral=True,
+            )
+    except Exception as e:
+        await interaction.followup.send(f"Error: {e}", ephemeral=True)
+
+
 client.run(DISCORD_BOT_TOKEN)
