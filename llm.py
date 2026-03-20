@@ -274,6 +274,17 @@ async def generate_digest(submitters: list[dict]) -> str:
             parts.append("No bracket activity today")
         lines.append(" | ".join(parts))
 
+    for s in submitters:
+        print(f"Digest data: {s['name']} — busts={len(s['busts'])} survivors={len(s['survivors'])}")
+        for b in s["busts"]:
+            print(f"  BUST: {b}")
+        for sv in s["survivors"]:
+            print(f"  SURV: {sv}")
+
+    print(f"[digest-llm] Submitters: {len(submitters)}")
+    for s in submitters:
+        print(f"[digest-llm]   {s['name']}: {len(s['busts'])} busts, {len(s['survivors'])} survivors")
+
     all_quiet = all(not s["busts"] and not s["survivors"] for s in submitters)
     context = (
         "No games were played today — brackets are untouched."
@@ -284,8 +295,9 @@ async def generate_digest(submitters: list[dict]) -> str:
         f"{context} Bracket status:\n\n"
         + "\n".join(lines)
         + "\n\nWrite a Demery-style daily bracket update. "
+        "Write it like a real person typing in a Discord channel — no headers, no bold formatting, no bullet points. Just natural flowing text. "
         "Open with a fresh, varied line that fits the vibe — don't always start the same way. "
-        "Mention each person by their Discord tag. "
+        "Mention each person using their EXACT Discord tag (e.g. <@123456>) — copy it verbatim, do not replace it with a name or @username. "
         "For busts: roast them with context — if you had a team going to the championship "
         "and they lost in the Elite Eight, that's richer material than a generic loss. "
         "For survivors: sarcastically praise them like they don't deserve it. "
@@ -293,6 +305,7 @@ async def generate_digest(submitters: list[dict]) -> str:
         "If no games were played, keep it short and pointed — acknowledge the calm before the storm. "
         "One or two punchy sentences per person. Address ALL submitters — no one gets skipped."
     )
+    print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=400,
@@ -305,4 +318,5 @@ async def generate_digest(submitters: list[dict]) -> str:
         ],
         messages=[{"role": "user", "content": content}],
     )
+    print(f"[digest-llm] Response ({len(response.content[0].text)} chars): {response.content[0].text[:200]}")
     return response.content[0].text

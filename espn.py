@@ -54,12 +54,18 @@ async def fetch_today_results(date_str: str) -> list[dict]:
     Fetch completed games for *date_str* (YYYYMMDD).
     Returns [{winner: str, loser: str, round: str}, ...].
     """
+    print(f"[espn] Fetching scoreboard for {date_str}")
     async with aiohttp.ClientSession() as session:
         data = await _get_json(session, ESPN_SCOREBOARD_API, {"dates": date_str})
 
+    total_events = len(data.get("events", []))
     results = []
     for event in data.get("events", []):
-        if not event.get("status", {}).get("type", {}).get("completed"):
+        completed = event.get("status", {}).get("type", {}).get("completed")
+        if not completed:
+            name = event.get("name", "unknown")
+            status = event.get("status", {}).get("type", {}).get("name", "unknown")
+            print(f"[espn]   Skipping incomplete: {name} (status={status})")
             continue
         competition = event.get("competitions", [{}])[0]
         competitors = competition.get("competitors", [])
@@ -82,4 +88,5 @@ async def fetch_today_results(date_str: str) -> list[dict]:
                 "round": round_name,
             }
         )
+    print(f"[espn] {total_events} events, {len(results)} completed games returned")
     return results

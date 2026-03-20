@@ -122,7 +122,12 @@ async def _run_digest(force: bool = False, guild_id: int | None = None) -> str |
             return None
 
     today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
+    print(f"[digest] Fetching games for {today}")
     games = await espn.fetch_today_results(today)
+    print(f"[digest] ESPN returned {len(games)} completed games")
+    for g in games:
+        tier = ROUND_NAME_TO_TIER.get(g["round"])
+        print(f"[digest]   {g['winner']} beat {g['loser']} | round='{g['round']}' → tier={tier}")
 
     last_message = None
     for gc in guild_channels:
@@ -130,24 +135,32 @@ async def _run_digest(force: bool = False, guild_id: int | None = None) -> str |
         state_key = f"digest_{gid}_{today}"
 
         if not force and db.get_digest_state(state_key):
-            continue  # already posted for this guild today
+            print(f"[digest] Guild {gid}: already posted today, skipping")
+            continue
 
         guild_brackets = db.get_guild_brackets(gid)
+        print(f"[digest] Guild {gid}: {len(guild_brackets)} brackets on file")
         submitters = []
         for entry in guild_brackets:
             picks = entry["picks"]
+            print(f"[digest]   User {entry['display_name']}: {len(picks.get('round_of_32', []))} R32 picks, champion={picks.get('champion')}")
             busts, survivors = [], []
             for game in games:
                 tier = ROUND_NAME_TO_TIER.get(game["round"])
                 if not tier:
-                    continue  # play-in or unrecognized round — skip
+                    print(f"[digest]     SKIP: unrecognized round '{game['round']}'")
+                    continue
                 idx = ROUND_TIER_ORDER.index(tier)
                 tiers_at_or_beyond = ROUND_TIER_ORDER[idx:]
                 picked_teams = set()
                 for t in tiers_at_or_beyond:
                     val = picks.get(t, [])
                     picked_teams.update([val] if isinstance(val, str) else val)
-                if game["loser"] in picked_teams:
+                loser_match = game["loser"] in picked_teams
+                winner_match = game["winner"] in picked_teams
+                if loser_match or winner_match:
+                    print(f"[digest]     {game['winner']} vs {game['loser']}: loser_picked={loser_match} winner_picked={winner_match}")
+                if loser_match:
                     furthest = next(
                         (t for t in reversed(ROUND_TIER_ORDER) if game["loser"] in (
                             [picks[t]] if isinstance(picks.get(t), str) else picks.get(t, [])
@@ -159,11 +172,12 @@ async def _run_digest(force: bool = False, guild_id: int | None = None) -> str |
                         "picked_to_reach": furthest,
                         "lost_in": game["round"],
                     })
-                if game["winner"] in picked_teams:
+                if winner_match:
                     survivors.append({
                         "team": game["winner"],
                         "still_alive_through": game["round"],
                     })
+            print(f"[digest]   → {entry['display_name']}: {len(busts)} busts, {len(survivors)} survivors")
             submitters.append({
                 "mention": f"<@{entry['discord_user_id']}>",
                 "name": entry["display_name"],
@@ -172,8 +186,10 @@ async def _run_digest(force: bool = False, guild_id: int | None = None) -> str |
             })
 
         if not submitters:
+            print(f"[digest] Guild {gid}: no submitters, skipping")
             continue
 
+        print(f"[digest] Guild {gid}: sending to LLM with {len(submitters)} submitters")
         message = await generate_digest(submitters)
         channel = client.get_channel(gc["channel_id"])
         if channel:
