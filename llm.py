@@ -45,6 +45,7 @@ async def generate_taunt(
     intensity: str,
     bracket_data: dict | None = None,
     results: dict | None = None,
+    recent_results: dict | None = None,
 ) -> str:
     content = f"Taunt {target_mention} at {intensity} intensity."
     if bracket_data:
@@ -56,21 +57,45 @@ async def generate_taunt(
             f"\n- Elite Eight: {', '.join(bracket_data['elite_eight'])}"
             f"\n\nMake the roast specific to their picks where it's funny."
         )
+    has_recent = recent_results and (recent_results["busts"] or recent_results["survivors"])
+    if has_recent:
+        if recent_results["busts"]:
+            bust_lines = [
+                f"- {b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})"
+                for b in recent_results["busts"]
+            ]
+            content += "\n\nMOST RECENT busts (yesterday/today — these are the headline):\n" + "\n".join(bust_lines)
+        if recent_results["survivors"]:
+            surv_lines = [
+                f"- {s['team']} (still alive through {s['still_alive_through']})"
+                for s in recent_results["survivors"]
+            ]
+            content += "\n\nMOST RECENT survivors (yesterday/today):\n" + "\n".join(surv_lines)
     if results:
         if results["busts"]:
             bust_lines = [
                 f"- {b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})"
                 for b in results["busts"]
             ]
-            content += "\n\nBusted bracket picks so far:\n" + "\n".join(bust_lines)
+            label = "All busts (cumulative — for context on total bracket damage)" if has_recent else "Busted bracket picks so far"
+            content += f"\n\n{label}:\n" + "\n".join(bust_lines)
         if results["survivors"]:
             surv_lines = [
                 f"- {s['team']} (still alive through {s['still_alive_through']})" for s in results["survivors"]
             ]
-            content += "\n\nSurvivors still alive:\n" + "\n".join(surv_lines)
-        content += (
-            "\n\nUse the tournament results — the bigger the gap between expectation and reality, the funnier it is."
-        )
+            label = "All survivors (cumulative)" if has_recent else "Survivors still alive"
+            content += f"\n\n{label}:\n" + "\n".join(surv_lines)
+    if results or has_recent:
+        if has_recent:
+            content += (
+                "\n\nFocus the roast on the MOST RECENT busts — that's the fresh wound. "
+                "Use the cumulative data to show how the overall bracket is crumbling. "
+                "The bigger the gap between where they picked a team to go and where it actually got bounced, the funnier it is."
+            )
+        else:
+            content += (
+                "\n\nUse the tournament results — the bigger the gap between expectation and reality, the funnier it is."
+            )
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=200,

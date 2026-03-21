@@ -320,11 +320,22 @@ async def taunt(
     await interaction.response.defer()
     bracket_data = db.get_bracket(user.id, interaction.guild_id)
     results = None
+    recent_results = None
     if bracket_data:
         games = await espn.fetch_tournament_results()
         if games:
             results = _compute_bracket_status(bracket_data, games)
-    taunt_text = await generate_taunt(user.mention, intensity_value, bracket_data, results)
+            # Compute recent results (yesterday + today) for personalized emphasis
+            today_str = datetime.datetime.now(EASTERN).strftime("%Y%m%d")
+            yesterday_str = (datetime.datetime.now(EASTERN) - datetime.timedelta(days=1)).strftime("%Y%m%d")
+            recent_game_list = []
+            for date_str in [yesterday_str, today_str]:
+                if date_str in TOURNAMENT_GAME_DATES:
+                    day_games = await espn.fetch_today_results(date_str)
+                    recent_game_list.extend(day_games)
+            if recent_game_list:
+                recent_results = _compute_bracket_status(bracket_data, recent_game_list)
+    taunt_text = await generate_taunt(user.mention, intensity_value, bracket_data, results, recent_results)
     await interaction.followup.send(taunt_text)
 
 
