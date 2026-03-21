@@ -397,8 +397,9 @@ async def about(interaction: discord.Interaction):
         "**Commands:**\n"
         "- `/diss @user [intensity]` — Demery roasts someone's bracket picks\n"
         "- `/submitbracket [image]` — upload a bracket screenshot so Demery knows your picks\n"
+        "- `/setchannel #channel` — set the digest channel *(Manage Channels permission required)*\n"
         "- `/disshelp` — full usage guide and intensity levels\n\n"
-        "**Daily Digest:** Every day during the tournament, Demery posts a recap "
+        "**Daily Digest:** Every morning after tournament games, Demery posts a recap "
         "calling out busted picks and praising survivors across all submitted brackets."
     )
 

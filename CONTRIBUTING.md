@@ -1,93 +1,50 @@
-# Dev Guide
+# Contributing to Demery Bot
 
-## Stack
+Thanks for your interest in contributing! Here's how to get involved.
 
-- [discord.py](https://discordpy.readthedocs.io/) — slash commands
-- [Anthropic](https://docs.anthropic.com/) — `claude-haiku-4-5` for trash talk generation
-- [Fly.io](https://fly.io) — persistent worker deployment
-- GitHub Actions — CI/CD
+## Reporting Bugs
 
-## Local Development
+Open a [bug report](https://github.com/jnsartwell/demery-bot/issues/new?template=bug_report.md) with:
 
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env  # fill in values
-python bot.py
-```
+- What you expected to happen
+- What actually happened
+- Steps to reproduce
 
-`.env` needs:
+## Requesting Features
 
-| Variable | Notes |
-|---|---|
-| `DISCORD_BOT_TOKEN` | Bot token from Discord Developer Portal |
-| `ANTHROPIC_API_KEY` | Anthropic API key |
-| `DISCORD_BOT_APPLICATION_ID` | Discord application ID (integer) |
-| `DISCORD_GUILD_ID` | Comma-separated guild IDs for instant slash command sync (optional) |
-| `DB_PATH` | SQLite path; set to `./brackets.db` locally (defaults to `/data/brackets.db` for Fly.io) |
+Open a [feature request](https://github.com/jnsartwell/demery-bot/issues/new?template=feature_request.md) with a description and motivation.
 
-## Pre-Commit Hook
+## Submitting Pull Requests
 
-After cloning, point git at the repo's hooks directory:
+1. Fork the repo and create a branch from `main`
+2. Follow the development workflow below
+3. Open a PR using the [PR template](https://github.com/jnsartwell/demery-bot/blob/main/.github/PULL_REQUEST_TEMPLATE.md)
+4. PRs require one approving review and all CI checks to pass (`lint`, `test`, `secret-scan`)
+
+### Development Workflow
+
+This project follows a stories-first workflow:
+
+1. **Requirements first** — all feature work starts in `STORIES.md` with user stories and acceptance criteria
+2. **Tests from stories** — every story must be covered by tests before implementation
+3. **Implementation from tests** — production code is written to satisfy the tests
+
+### Code Style
+
+- **Linter/formatter:** [Ruff](https://docs.astral.sh/ruff/) — `ruff check && ruff format --check` must pass
+- **Line length:** 120 characters
+- **Config:** `pyproject.toml`
+
+### Pre-Commit Hook
+
+After cloning, enable the pre-commit hook:
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-This runs lint, tests, and secret scanning automatically before every commit. If any check fails, the commit is blocked.
+This runs lint, tests, and secret scanning before every commit. See the [Dev Guide](docs/dev-guide.md) for details.
 
-> **Note:** Secret scanning requires [gitleaks](https://github.com/gitleaks/gitleaks) to be installed locally (`brew install gitleaks` or see their releases page). If not installed, the hook skips the scan with a warning.
+## Development Setup
 
-## Linting
-
-```bash
-ruff check              # lint (unused imports, errors, import order)
-ruff format --check     # check formatting without changing files
-ruff format             # auto-format in place
-ruff check --fix        # auto-fix lint issues (e.g. unused imports)
-```
-
-- [Ruff](https://docs.astral.sh/ruff/) handles linting and formatting — config in `pyproject.toml`
-- Lint + format checks must pass before deploy (enforced by CI)
-
-## Testing
-
-```bash
-python -m pytest tests/ -v
-```
-
-- Tests cover all user stories and dev stories in `STORIES.md`
-- Tests mock all external APIs (Anthropic, ESPN, Discord) — no network access needed
-- Each test gets a fresh temp SQLite database (no cleanup required)
-- Tests must pass before deploy (enforced by CI)
-
-## Deploy
-
-Trigger manually via **Actions → Deploy to Fly.io → Run workflow**.
-
-The workflow runs lint, tests, and secret scanning first — if any fail, the deploy is blocked. On success, it syncs all secrets/vars and deploys a single machine to Fly.io.
-
-A separate **CI** workflow (`ci.yml`) runs on every push to `main` and on pull requests — it runs lint, tests, and secret scanning in parallel.
-
-### GitHub Secrets & Variables
-
-| Name | Type |
-|---|---|
-| `DISCORD_BOT_TOKEN` | Secret |
-| `ANTHROPIC_API_KEY` | Secret |
-| `FLY_AUTH_TOKEN` | Secret |
-| `DISCORD_BOT_APPLICATION_ID` | Variable |
-| `DISCORD_GUILD_ID` | Variable (comma-separated for multiple servers) |
-| `DISCORD_BYPASS_USER_IDS` | Variable (comma-separated; exempt from cooldown + can use `/testdigest`) |
-| `TAUNT_HOUR` | Variable (UTC hour 0–23 to post digest; default `21`) |
-
-### First-Time Fly.io Setup
-
-Before the first deploy, create the persistent volume for SQLite:
-
-```bash
-flyctl volumes create brackets_data --region iad --size 1
-```
-
-Only needs to be done once. The volume is mounted at `/data` and persists across deploys.
+For local setup, environment variables, testing, and deploy instructions, see the **[Dev Guide](docs/dev-guide.md)**.
