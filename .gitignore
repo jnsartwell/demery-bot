@@ -5,3 +5,6 @@ __pycache__/
 CLAUDE.md
 session_summary.md
 docs/progress.md
+.claude/
+PROGRESS.md
+SESSION_SUMMARY.md

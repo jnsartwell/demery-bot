@@ -51,6 +51,22 @@ ROUND_NAME_TO_TIER = {
     "Championship": "champion",
 }
 
+# 2026 NCAA Men's Tournament game dates (YYYYMMDD, Eastern time)
+TOURNAMENT_GAME_DATES = {
+    "20260317",
+    "20260318",  # First Four
+    "20260319",
+    "20260320",  # Round of 64
+    "20260321",
+    "20260322",  # Round of 32
+    "20260326",
+    "20260327",  # Sweet 16
+    "20260328",
+    "20260329",  # Elite Eight
+    "20260404",  # Final Four
+    "20260406",  # Championship
+}
+
 
 class DemeryBot(discord.Client):
     def __init__(self):
@@ -244,6 +260,10 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
 @tasks.loop(time=datetime.time(hour=TAUNT_HOUR, tzinfo=datetime.timezone.utc))
 async def daily_digest_task():
     try:
+        yesterday = (datetime.datetime.now(EASTERN) - datetime.timedelta(days=1)).strftime("%Y%m%d")
+        if yesterday not in TOURNAMENT_GAME_DATES:
+            print(f"[digest] No tournament games yesterday ({yesterday}), skipping digest")
+            return
         await _run_digest()
     except Exception:
         print("Digest error:")

@@ -1,6 +1,7 @@
 """
 Tests for _run_digest in bot.py — covers:
   US-9:  Daily digest — automatic bracket recap
+  US-12: Skip digest on non-game days
   DS-13: Eastern time for game dates
 """
 
@@ -357,3 +358,71 @@ class TestEasternTime:
         # Should fetch March 19 (Eastern), not March 20 (UTC)
         assert "20260319" in fetched_dates
         assert "20260320" not in fetched_dates
+
+
+# ---------------------------------------------------------------------------
+# US-12: Skip digest on non-game days
+# ---------------------------------------------------------------------------
+
+
+class TestSkipNonGameDays:
+    """Tests for daily_digest_task() skipping on non-tournament days.
+
+    The skip logic lives in daily_digest_task (not _run_digest), so
+    /testdigest and /pushdigest inherently bypass it.
+    """
+
+    @pytest.mark.asyncio
+    async def test_daily_task_skips_on_non_game_day(self, monkeypatch):
+        """Digest should not run when yesterday has no tournament games."""
+        # March 24 8am ET — yesterday is March 23, a gap day (no tournament games)
+        et_time = datetime.datetime(2026, 3, 24, 8, 0, 0, tzinfo=bot.EASTERN)
+
+        class MockDatetime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return et_time
+
+        monkeypatch.setattr(bot.datetime, "datetime", MockDatetime)
+
+        with patch.object(bot, "_run_digest", new_callable=AsyncMock) as mock_digest:
+            await bot.daily_digest_task()
+            mock_digest.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_daily_task_runs_on_game_day(self, monkeypatch):
+        """Digest should run when yesterday is a tournament game day."""
+        # March 20 8am ET — yesterday is March 19, Round of 64
+        et_time = datetime.datetime(2026, 3, 20, 8, 0, 0, tzinfo=bot.EASTERN)
+
+        class MockDatetime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return et_time
+
+        monkeypatch.setattr(bot.datetime, "datetime", MockDatetime)
+
+        with patch.object(bot, "_run_digest", new_callable=AsyncMock) as mock_digest:
+            await bot.daily_digest_task()
+            mock_digest.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_daily_task_uses_eastern_for_yesterday(self, monkeypatch):
+        """Yesterday should be computed in Eastern time, not UTC.
+
+        At 9pm ET on March 23 (= 1am UTC March 24), yesterday in Eastern
+        is March 22 (Round of 32 — a game day), not March 23 (a gap day).
+        The digest should run.
+        """
+        et_time = datetime.datetime(2026, 3, 23, 21, 0, 0, tzinfo=bot.EASTERN)
+
+        class MockDatetime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return et_time
+
+        monkeypatch.setattr(bot.datetime, "datetime", MockDatetime)
+
+        with patch.object(bot, "_run_digest", new_callable=AsyncMock) as mock_digest:
+            await bot.daily_digest_task()
+            mock_digest.assert_called_once()
