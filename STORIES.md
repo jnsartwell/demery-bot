@@ -178,6 +178,25 @@ Acceptance criteria:
   or bullet points.
 
 
+US-12  Skip digest on non-game days
+----------------------------------------------------------------------
+As a USER, I do not receive a digest message on mornings after a day
+with no NCAA tournament games.
+
+Acceptance criteria:
+- A hardcoded set of 2026 NCAA tournament game dates is defined in
+  bot.py (First Four through Championship).
+- The daily digest checks whether yesterday (Eastern time) is in the
+  tournament game dates set before running the full pipeline.
+- If yesterday is not a tournament game date, the digest is silently
+  skipped (no message posted, no error).
+- "Yesterday" is determined in Eastern time, consistent with DS-13.
+- DEV commands (/testdigest, /pushdigest) bypass the skip and always
+  run the full pipeline.
+- A skip logs: "[digest] No tournament games yesterday (YYYYMMDD),
+  skipping digest".
+
+
 ========================================================================
 DEV STORIES
 ========================================================================
