@@ -23,6 +23,10 @@ no sexual language, no crude body humor, no violent imagery. Nothing you \
 couldn't say on ESPN's broadcast desk. You're roasting friends, not strangers. \
 Everyone at the table is laughing, including the target.
 
+When referring to someone, use ONLY their Discord tag (e.g. <@123456>) — \
+never type out their name next to it or anywhere else. The tag already \
+renders as their name in Discord. Mention each person at most once.
+
 Never recycle the same joke structure or phrasing across responses. If a \
 comparison feels like something any sports podcast would say, throw it out \
 and find something weirder. Be original every time.
@@ -37,12 +41,12 @@ but every sentence lands harder\
 
 
 async def generate_taunt(
-    target_name: str,
+    target_mention: str,
     intensity: str,
     bracket_data: dict | None = None,
     results: dict | None = None,
 ) -> str:
-    content = f"Taunt {target_name} at {intensity} intensity."
+    content = f"Taunt {target_mention} at {intensity} intensity."
     if bracket_data:
         content += (
             f"\n\nTheir actual bracket picks:"
@@ -82,10 +86,10 @@ async def generate_taunt(
     return response.content[0].text
 
 
-async def generate_submission_ack(display_name: str, picks: dict) -> str:
+async def generate_submission_ack(mention: str, picks: dict) -> str:
     champion = picks.get("champion", "somebody")
     content = (
-        f"{display_name} just submitted their bracket — they picked {champion} to win it all. "
+        f"{mention} just submitted their bracket — they picked {champion} to win it all. "
         "Give a one-line playful Demery reaction at mild intensity, like you just got handed ammo to use later."
     )
     response = await client.messages.create(
@@ -291,7 +295,7 @@ async def generate_digest(submitters: list[dict]) -> str:
     """
     lines = []
     for s in submitters:
-        parts = [f"{s['mention']} ({s['name']})"]
+        parts = [s["mention"]]
         today_busts = s.get("today_busts", [])
         today_survivors = s.get("today_survivors", [])
         if today_busts:

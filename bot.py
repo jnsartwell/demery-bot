@@ -316,8 +316,8 @@ async def taunt(
         games = await espn.fetch_tournament_results()
         if games:
             results = _compute_bracket_status(bracket_data, games)
-    taunt_text = await generate_taunt(user.display_name, intensity_value, bracket_data, results)
-    await interaction.followup.send(f"{user.mention} {taunt_text}")
+    taunt_text = await generate_taunt(user.mention, intensity_value, bracket_data, results)
+    await interaction.followup.send(taunt_text)
 
 
 @client.tree.command(
@@ -354,8 +354,8 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
         print(f"Team name normalization failed, saving raw picks: {e}")
 
     db.upsert_bracket(interaction.user.id, interaction.guild_id, interaction.user.display_name, picks)
-    ack = await generate_submission_ack(interaction.user.display_name, picks)
-    await interaction.followup.send(f"{interaction.user.mention} {ack}")
+    ack = await generate_submission_ack(interaction.user.mention, picks)
+    await interaction.followup.send(ack)
 
     lines = [
         f"**Champion:** {picks['champion']}",

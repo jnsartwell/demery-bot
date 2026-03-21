@@ -37,11 +37,12 @@ class TestDissCommand:
     @pytest.mark.asyncio
     async def test_mentions_target(self, make_interaction, make_member, bypass_user, mock_anthropic, monkeypatch):
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
+        mock_gen = AsyncMock(return_value="roast")
+        monkeypatch.setattr(bot, "generate_taunt", mock_gen)
         interaction = make_interaction(user_id=bypass_user)
         target = make_member(user_id=2001)
         await bot.taunt.callback(interaction, user=target, intensity=None)
-        sent = interaction.followup.send.call_args[0][0]
-        assert "<@2001>" in sent
+        assert mock_gen.call_args[0][0] == "<@2001>"
 
     @pytest.mark.asyncio
     async def test_default_intensity_medium(
