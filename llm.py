@@ -174,18 +174,23 @@ If you cannot read the bracket clearly or any round is missing, respond with onl
 
     raw = response.content[0].text.strip()
     print(f"parse_bracket_image raw response ({len(raw)} chars): {raw[:200]}")
+    return _extract_and_validate_picks(raw)
 
+
+def _extract_and_validate_picks(raw: str) -> dict:
+    """
+    Extract and validate bracket picks JSON from raw LLM response text.
+    Handles markdown fences, surrounding text, and validates required keys.
+    Raises ValueError on parse failure, error responses, or missing rounds.
+    """
     # Try to extract JSON from markdown code fences or surrounding text
     fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
     if fence_match:
         raw = fence_match.group(1).strip()
     elif not raw.startswith("{"):
-        # Find the outermost balanced JSON object using non-greedy match
-        # by looking for the last } that forms valid JSON with the first {
         start = raw.find("{")
         if start != -1:
             raw = raw[start:]
-            # Trim trailing non-JSON text by trying progressively shorter substrings
             for end in range(len(raw), 0, -1):
                 if raw[end - 1] == "}":
                     try:
@@ -198,7 +203,7 @@ If you cannot read the bracket clearly or any round is missing, respond with onl
     try:
         picks = json.loads(raw)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Could not parse bracket JSON from image: {e}") from e
+        raise ValueError(f"Could not parse bracket JSON: {e}") from e
 
     if "error" in picks:
         raise ValueError(f"Claude could not read bracket: {picks['error']}")
@@ -216,6 +221,51 @@ If you cannot read the bracket clearly or any round is missing, respond with onl
         raise ValueError(f"Bracket picks missing rounds: {missing}")
 
     return picks
+
+
+async def parse_bracket_html(html: str) -> dict:
+    """
+    Send preprocessed HTML/data to Claude to extract bracket picks.
+    Returns picks dict with the same schema as parse_bracket_image.
+    Raises ValueError if picks cannot be extracted.
+    """
+    prompt = f"""\
+This is preprocessed content from a March Madness bracket page. Extract the user's PICKS for each round.
+
+IMPORTANT CONTEXT:
+- This may be from ESPN, Yahoo, CBS, or any other bracket provider.
+- We want the user's ORIGINAL PICKS, not actual tournament results.
+- Look for team names in the HTML structure, embedded JSON data, or text content.
+
+Use full ESPN display names (e.g. "Duke Blue Devils", "Arizona Wildcats", "UConn Huskies").
+
+RESPOND WITH ONLY RAW JSON. No markdown, no code fences, no explanation, no text before or after.
+Your entire response must be valid JSON and nothing else.
+
+{{
+  "round_of_32": ["<32 team names — teams picked to win the First Round>"],
+  "sweet_16": ["<16 team names — teams picked to win the Second Round>"],
+  "elite_eight": ["<8 team names — teams picked to win the Sweet 16>"],
+  "final_four": ["<4 team names — teams picked to win the Elite Eight>"],
+  "championship_game": ["<2 team names — teams picked to win the Final Four>"],
+  "champion": "<1 team name — picked to win the Championship>"
+}}
+
+If you cannot extract bracket picks from this content, respond with only:
+{{"error": "reason the bracket could not be parsed"}}
+
+PAGE CONTENT:
+{html}"""
+
+    response = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    raw = response.content[0].text.strip()
+    print(f"parse_bracket_html raw response ({len(raw)} chars): {raw[:200]}")
+    return _extract_and_validate_picks(raw)
 
 
 async def normalize_team_names(picks: dict, espn_names: list[str]) -> dict:

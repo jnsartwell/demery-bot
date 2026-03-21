@@ -2,7 +2,7 @@
 Tests for _run_digest in bot.py — covers:
   US-9:  Daily digest — automatic bracket recap
   US-12: Skip digest on non-game days
-  DS-13: Eastern time for game dates
+  DS-10: Eastern time for game dates
 """
 
 import datetime
@@ -323,7 +323,7 @@ class TestCumulativeDigest:
 
 
 # ---------------------------------------------------------------------------
-# DS-13: Eastern time for game dates
+# DS-10: Eastern time for game dates
 # ---------------------------------------------------------------------------
 
 

@@ -2,7 +2,7 @@
 Tests for db.py — covers:
   US-5:  Re-submit a bracket (upsert)
   US-6:  Brackets are per-guild
-  DS-10: Database migrations
+  DS-7: Database migrations
 """
 
 import sqlite3
@@ -10,7 +10,7 @@ import sqlite3
 import db
 
 # ---------------------------------------------------------------------------
-# DS-10: Database migrations
+# DS-7: Database migrations
 # ---------------------------------------------------------------------------
 
 

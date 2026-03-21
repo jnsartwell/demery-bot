@@ -1,13 +1,13 @@
 """
 Tests for _compute_bracket_status — covers:
-  DS-11: Round-to-tier mapping
-  DS-12: Bust and survivor computation
+  DS-8: Round-to-tier mapping
+  DS-9: Bust and survivor computation
 """
 
 from bot import ROUND_NAME_TO_TIER, ROUND_TIER_ORDER, _compute_bracket_status
 
 # ---------------------------------------------------------------------------
-# DS-11: Round-to-tier mapping
+# DS-8: Round-to-tier mapping
 # ---------------------------------------------------------------------------
 
 
@@ -43,7 +43,7 @@ class TestRoundNameToTier:
 
 
 # ---------------------------------------------------------------------------
-# DS-12: Bust and survivor computation
+# DS-9: Bust and survivor computation
 # ---------------------------------------------------------------------------
 
 

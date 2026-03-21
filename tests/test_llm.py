@@ -1,9 +1,9 @@
 """
 Tests for llm.py — covers:
   US-11: Tone and personality (system prompt verification)
-  DS-6:  Team name normalization
-  DS-7:  Prompt caching on system prompt
-  DS-8:  Bracket image parsing robustness
+  DS-3:  Team name normalization
+  DS-4:  Prompt caching on system prompt
+  DS-5:  Bracket image parsing robustness
 """
 
 import json
@@ -43,7 +43,7 @@ class TestSystemPrompt:
 
 
 # ---------------------------------------------------------------------------
-# DS-7: Prompt caching on system prompt
+# DS-4: Prompt caching on system prompt
 # ---------------------------------------------------------------------------
 
 
@@ -227,7 +227,7 @@ class TestGenerateDigest:
 
 
 # ---------------------------------------------------------------------------
-# DS-8: Bracket image parsing robustness
+# DS-5: Bracket image parsing robustness
 # ---------------------------------------------------------------------------
 
 
@@ -327,7 +327,7 @@ class TestParseBracketImage:
 
 
 # ---------------------------------------------------------------------------
-# DS-6: Team name normalization
+# DS-3: Team name normalization
 # ---------------------------------------------------------------------------
 
 
@@ -399,3 +399,118 @@ class TestNormalizeTeamNames:
         }
         result = await llm.normalize_team_names(picks, ["Duke Blue Devils"])
         assert result["champion"] == "Duke Blue Devils"
+
+
+# ---------------------------------------------------------------------------
+# DS-5: Bracket picks extraction/validation (shared helper)
+# ---------------------------------------------------------------------------
+
+
+class TestExtractAndValidatePicks:
+    def _valid_picks_json(self):
+        return json.dumps(
+            {
+                "round_of_32": ["A"] * 32,
+                "sweet_16": ["A"] * 16,
+                "elite_eight": ["A"] * 8,
+                "final_four": ["A"] * 4,
+                "championship_game": ["A", "B"],
+                "champion": "A",
+            }
+        )
+
+    def test_valid_json_returns_picks(self):
+        result = llm._extract_and_validate_picks(self._valid_picks_json())
+        assert result["champion"] == "A"
+        assert len(result["round_of_32"]) == 32
+
+    def test_strips_markdown_fences(self):
+        wrapped = f"```json\n{self._valid_picks_json()}\n```"
+        result = llm._extract_and_validate_picks(wrapped)
+        assert result["champion"] == "A"
+
+    def test_extracts_from_surrounding_text(self):
+        wrapped = f"Here are the picks:\n{self._valid_picks_json()}\nDone!"
+        result = llm._extract_and_validate_picks(wrapped)
+        assert result["champion"] == "A"
+
+    def test_error_key_raises(self):
+        with pytest.raises(ValueError, match="Cannot read"):
+            llm._extract_and_validate_picks('{"error": "Cannot read this bracket"}')
+
+    def test_missing_keys_raises(self):
+        with pytest.raises(ValueError, match="missing rounds"):
+            llm._extract_and_validate_picks('{"round_of_32": ["A"], "champion": "A"}')
+
+    def test_unparseable_raises(self):
+        with pytest.raises(ValueError, match="Could not parse"):
+            llm._extract_and_validate_picks("This is not JSON at all")
+
+
+# ---------------------------------------------------------------------------
+# US-13: Parse bracket from HTML
+# ---------------------------------------------------------------------------
+
+
+class TestParseBracketHtml:
+    def _valid_picks_json(self):
+        return json.dumps(
+            {
+                "round_of_32": ["A"] * 32,
+                "sweet_16": ["A"] * 16,
+                "elite_eight": ["A"] * 8,
+                "final_four": ["A"] * 4,
+                "championship_game": ["A", "B"],
+                "champion": "A",
+            }
+        )
+
+    def _mock_response(self, text):
+        mock_resp = MagicMock()
+        mock_resp.content = [MagicMock(text=text)]
+        return mock_resp
+
+    @pytest.mark.asyncio
+    async def test_valid_response_returns_picks(self, monkeypatch):
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=self._mock_response(self._valid_picks_json()))
+        monkeypatch.setattr(llm, "client", mock_client)
+
+        result = await llm.parse_bracket_html("<div>Duke vs Kansas</div>")
+        assert result["champion"] == "A"
+        assert len(result["round_of_32"]) == 32
+
+    @pytest.mark.asyncio
+    async def test_uses_sonnet_model(self, monkeypatch):
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=self._mock_response(self._valid_picks_json()))
+        monkeypatch.setattr(llm, "client", mock_client)
+
+        await llm.parse_bracket_html("<div>bracket</div>")
+
+        call_kwargs = mock_client.messages.create.call_args.kwargs
+        assert "sonnet" in call_kwargs["model"]
+
+    @pytest.mark.asyncio
+    async def test_sends_text_not_vision(self, monkeypatch):
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=self._mock_response(self._valid_picks_json()))
+        monkeypatch.setattr(llm, "client", mock_client)
+
+        await llm.parse_bracket_html("<div>bracket</div>")
+
+        call_kwargs = mock_client.messages.create.call_args.kwargs
+        messages = call_kwargs["messages"]
+        # Should be a simple text message, not a content list with image blocks
+        assert isinstance(messages[0]["content"], str)
+
+    @pytest.mark.asyncio
+    async def test_parse_failure_raises_valueerror(self, monkeypatch):
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(
+            return_value=self._mock_response("I can't extract picks from this HTML")
+        )
+        monkeypatch.setattr(llm, "client", mock_client)
+
+        with pytest.raises(ValueError, match="Could not parse"):
+            await llm.parse_bracket_html("<div>not a bracket</div>")

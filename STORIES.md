@@ -190,18 +190,44 @@ Acceptance criteria:
   tournament game dates set before running the full pipeline.
 - If yesterday is not a tournament game date, the digest is silently
   skipped (no message posted, no error).
-- "Yesterday" is determined in Eastern time, consistent with DS-13.
+- "Yesterday" is determined in Eastern time, consistent with DS-10.
 - DEV commands (/testdigest, /pushdigest) bypass the skip and always
   run the full pipeline.
 - A skip logs: "[digest] No tournament games yesterday (YYYYMMDD),
   skipping digest".
 
 
-========================================================================
-DEV STORIES
-========================================================================
+US-13  Submit a bracket via URL
+----------------------------------------------------------------------
+As a DEV, I can type `/submitbracket-url [url]` and provide a bracket
+page URL instead of a screenshot so I can submit brackets more easily
+from mobile.
 
-DS-1  Test digest (preview without broadcasting)
+Acceptance criteria:
+- The command accepts a required `url` argument (string).
+- Gated to BYPASS_USER_IDS; non-DEV users get "Not for you."
+  (ephemeral).
+- The bot fetches HTML from the URL with a browser User-Agent and 30s
+  timeout; non-200 status or non-HTML content type raises a ValueError.
+- The bot preprocesses the HTML: extracts embedded JSON from script
+  tags, strips noise tags (script, style, noscript, svg, iframe,
+  header, footer, nav), removes HTML comments, strips non-semantic
+  attributes, isolates bracket subtree by keyword matching, collapses
+  whitespace, and truncates to 100,000 chars.
+- The bot sends cleaned content to Claude (text, not vision) to
+  extract picks in the same 6-round schema as image submission.
+- After extraction, picks are normalized and stored identically to
+  `/submitbracket` (normalize team names, upsert to DB, public
+  Demery-style ack, ephemeral summary).
+- On failure (fetch error, parse error, timeout): an ephemeral error
+  message is shown.
+- The submission rate limit (3/day per user, `_last_submit` dict) is
+  shared with `/submitbracket`; a URL submission counts toward the
+  same daily quota.
+- DEV users are exempt from the rate limit.
+
+
+US-14  Test digest (preview without broadcasting)
 ----------------------------------------------------------------------
 As a DEV, I can type `/testdigest` to trigger the digest for my guild
 immediately and see the result as an ephemeral message, without posting
@@ -215,7 +241,7 @@ Acceptance criteria:
   the digest channel.
 
 
-DS-2  Push digest (broadcast on demand)
+US-15  Push digest (broadcast on demand)
 ----------------------------------------------------------------------
 As a DEV, I can type `/pushdigest` to trigger and broadcast the digest
 to the configured channel immediately.
@@ -227,7 +253,7 @@ Acceptance criteria:
 - Also sends an ephemeral copy to the invoker.
 
 
-DS-3  Debug guild visibility
+US-16  Debug guild visibility
 ----------------------------------------------------------------------
 As a DEV, I can type `/debugguild` to see what the bot can access in
 the current guild.
@@ -239,7 +265,11 @@ Acceptance criteria:
 - Response is ephemeral.
 
 
-DS-4  ESPN scoreboard result caching (in-memory)
+========================================================================
+DEV STORIES
+========================================================================
+
+DS-1  ESPN scoreboard result caching (in-memory)
 ----------------------------------------------------------------------
 As a DEV, I expect that repeated `/diss` calls within the same process
 lifetime do not re-fetch past tournament dates from ESPN.
@@ -255,7 +285,7 @@ Acceptance criteria:
   for every date; subsequent calls only log today's date.
 
 
-DS-5  ESPN tournament team name caching
+DS-2  ESPN tournament team name caching
 ----------------------------------------------------------------------
 As a DEV, I expect that tournament team names from ESPN are fetched
 once and reused for all subsequent bracket submissions.
@@ -268,7 +298,7 @@ Acceptance criteria:
 - Cache is not persisted — it repopulates on bot restart.
 
 
-DS-6  Team name normalization on submission
+DS-3  Team name normalization on submission
 ----------------------------------------------------------------------
 As a DEV, I expect bracket picks extracted from images to be normalized
 to ESPN's official team displayName format before storage.
@@ -281,7 +311,7 @@ Acceptance criteria:
   submission is not rejected.
 
 
-DS-7  Prompt caching on system prompt
+DS-4  Prompt caching on system prompt
 ----------------------------------------------------------------------
 As a DEV, I expect the Demery system prompt to use Anthropic's prompt
 caching to reduce token costs.
@@ -293,7 +323,7 @@ Acceptance criteria:
   generate_digest.
 
 
-DS-8  Bracket image parsing robustness
+DS-5  Bracket image parsing robustness
 ----------------------------------------------------------------------
 As a DEV, I expect the bracket image parser to handle messy LLM output
 gracefully.
@@ -309,7 +339,7 @@ Acceptance criteria:
   the missing rounds.
 
 
-DS-9  Guild-scoped slash command sync
+DS-6  Guild-scoped slash command sync
 ----------------------------------------------------------------------
 As a DEV, I expect slash commands to sync instantly to configured test
 guilds during development.
@@ -323,7 +353,7 @@ Acceptance criteria:
   propagation delay).
 
 
-DS-10  Database migrations
+DS-7  Database migrations
 ----------------------------------------------------------------------
 As a DEV, I expect schema changes to be handled by a forward migration
 system.
@@ -337,7 +367,7 @@ Acceptance criteria:
   `rollback_migration()`.
 
 
-DS-11  Round-to-tier mapping
+DS-8  Round-to-tier mapping
 ----------------------------------------------------------------------
 As a DEV, I expect ESPN round names from game results to map correctly
 to the bracket picks schema tiers.
@@ -353,7 +383,7 @@ Acceptance criteria:
   skipped.
 
 
-DS-12  Bust and survivor computation
+DS-9  Bust and survivor computation
 ----------------------------------------------------------------------
 As a DEV, I expect `_compute_bracket_status()` to correctly identify
 busted and surviving picks.
@@ -368,7 +398,7 @@ Acceptance criteria:
 - Teams not in the user's picks for the relevant tiers are ignored.
 
 
-DS-13  Eastern time for game dates
+DS-10  Eastern time for game dates
 ----------------------------------------------------------------------
 As a DEV, I expect all date calculations for game fetching to use
 Eastern time, not UTC.
