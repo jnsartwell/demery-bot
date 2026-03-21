@@ -6,9 +6,9 @@ Tests for slash commands in bot.py — covers:
   US-4:  Submission rate limit
   US-7:  View help
   US-8:  View about info
-  DS-1:  Test digest (preview)
-  DS-2:  Push digest (broadcast)
-  DS-3:  Debug guild visibility
+  US-14: Test digest (preview)
+  US-15: Push digest (broadcast)
+  US-16: Debug guild visibility
 """
 
 import time
@@ -432,7 +432,7 @@ class TestAboutCommand:
 
 
 # ---------------------------------------------------------------------------
-# DS-1: Test digest (preview)
+# US-14: Test digest (preview)
 # ---------------------------------------------------------------------------
 
 
@@ -471,7 +471,7 @@ class TestTestDigestCommand:
 
 
 # ---------------------------------------------------------------------------
-# DS-2: Push digest (broadcast)
+# US-15: Push digest (broadcast)
 # ---------------------------------------------------------------------------
 
 
@@ -502,7 +502,7 @@ class TestPushDigestCommand:
 
 
 # ---------------------------------------------------------------------------
-# DS-3: Debug guild visibility
+# US-16: Debug guild visibility
 # ---------------------------------------------------------------------------
 
 

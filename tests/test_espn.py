@@ -1,7 +1,7 @@
 """
 Tests for espn.py — covers:
-  DS-4: ESPN scoreboard result caching
-  DS-5: ESPN tournament team name caching
+  DS-1: ESPN scoreboard result caching
+  DS-2: ESPN tournament team name caching
 """
 
 import datetime
@@ -126,7 +126,7 @@ class TestFetchTodayResults:
 
 
 # ---------------------------------------------------------------------------
-# DS-4: fetch_tournament_results caching
+# DS-1: fetch_tournament_results caching
 # ---------------------------------------------------------------------------
 
 
@@ -199,7 +199,7 @@ class TestFetchTournamentResults:
 
 
 # ---------------------------------------------------------------------------
-# DS-5: ESPN tournament team name caching
+# DS-2: ESPN tournament team name caching
 # ---------------------------------------------------------------------------
 
 
