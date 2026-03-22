@@ -29,14 +29,8 @@ class TestSystemPrompt:
     def test_contains_clean_language_rule(self):
         assert "safe for work" in llm.SYSTEM_PROMPT
 
-    def test_contains_intensity_mild(self):
-        assert "mild" in llm.SYSTEM_PROMPT
-
-    def test_contains_intensity_medium(self):
-        assert "medium" in llm.SYSTEM_PROMPT
-
-    def test_contains_intensity_harsh(self):
-        assert "harsh" in llm.SYSTEM_PROMPT
+    def test_contains_mild_style(self):
+        assert "one tight zinger" in llm.SYSTEM_PROMPT.lower() or "tight zinger" in llm.SYSTEM_PROMPT.lower()
 
     def test_contains_friend_tone(self):
         assert "roasting friends, not strangers" in llm.SYSTEM_PROMPT
@@ -50,7 +44,7 @@ class TestSystemPrompt:
 class TestPromptCaching:
     @pytest.mark.asyncio
     async def test_generate_diss_uses_cache_control(self, mock_anthropic):
-        await llm.generate_diss("Alice", "medium")
+        await llm.generate_diss("Alice")
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         system = call_kwargs["system"]
         assert system[0]["cache_control"] == {"type": "ephemeral"}
@@ -79,21 +73,20 @@ class TestPromptCaching:
 class TestGeneratediss:
     @pytest.mark.asyncio
     async def test_passes_system_prompt(self, mock_anthropic):
-        await llm.generate_diss("Alice", "medium")
+        await llm.generate_diss("Alice")
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         assert call_kwargs["system"][0]["text"] == llm.SYSTEM_PROMPT
 
     @pytest.mark.asyncio
     async def test_includes_target_name(self, mock_anthropic):
-        await llm.generate_diss("Alice", "harsh")
+        await llm.generate_diss("Alice")
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Alice" in user_content
-        assert "harsh" in user_content
 
     @pytest.mark.asyncio
     async def test_includes_bracket_data(self, mock_anthropic, sample_picks):
-        await llm.generate_diss("Alice", "medium", bracket_data=sample_picks)
+        await llm.generate_diss("Alice", bracket_data=sample_picks)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Duke Blue Devils" in user_content
@@ -105,7 +98,7 @@ class TestGeneratediss:
             "busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round"}],
             "survivors": [],
         }
-        await llm.generate_diss("Alice", "medium", bracket_data=sample_picks, results=results)
+        await llm.generate_diss("Alice", bracket_data=sample_picks, results=results)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Kentucky Wildcats" in user_content
@@ -117,21 +110,21 @@ class TestGeneratediss:
             "busts": [],
             "survivors": [{"team": "Duke Blue Devils", "thru": "1st Round"}],
         }
-        await llm.generate_diss("Alice", "medium", bracket_data=sample_picks, results=results)
+        await llm.generate_diss("Alice", bracket_data=sample_picks, results=results)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Alive:" in user_content
 
     @pytest.mark.asyncio
     async def test_no_bracket_no_picks_in_prompt(self, mock_anthropic):
-        await llm.generate_diss("Alice", "medium")
+        await llm.generate_diss("Alice")
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Champion" not in user_content
 
     @pytest.mark.asyncio
     async def test_returns_response_text(self, mock_anthropic):
-        result = await llm.generate_diss("Alice", "medium")
+        result = await llm.generate_diss("Alice")
         assert result == "Demery says something witty"
 
 

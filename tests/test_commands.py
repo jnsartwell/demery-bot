@@ -31,7 +31,7 @@ class TestDissCommand:
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
         interaction = make_interaction(user_id=bypass_user)
         target = make_member()
-        await bot.diss.callback(interaction, user=target, intensity=None)
+        await bot.diss.callback(interaction, user=target)
         interaction.response.defer.assert_called_once()
 
     @pytest.mark.asyncio
@@ -41,32 +41,8 @@ class TestDissCommand:
         monkeypatch.setattr(bot, "generate_diss", mock_gen)
         interaction = make_interaction(user_id=bypass_user)
         target = make_member(user_id=2001)
-        await bot.diss.callback(interaction, user=target, intensity=None)
+        await bot.diss.callback(interaction, user=target)
         assert mock_gen.call_args[0][0] == "<@2001>"
-
-    @pytest.mark.asyncio
-    async def test_default_intensity_medium(
-        self, make_interaction, make_member, bypass_user, mock_anthropic, monkeypatch
-    ):
-        monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
-        mock_gen = AsyncMock(return_value="roast")
-        monkeypatch.setattr(bot, "generate_diss", mock_gen)
-        interaction = make_interaction(user_id=bypass_user)
-        target = make_member()
-        await bot.diss.callback(interaction, user=target, intensity=None)
-        assert mock_gen.call_args[0][1] == "medium"
-
-    @pytest.mark.asyncio
-    async def test_intensity_passed_through(
-        self, make_interaction, make_member, make_intensity, bypass_user, mock_anthropic, monkeypatch
-    ):
-        monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
-        mock_gen = AsyncMock(return_value="roast")
-        monkeypatch.setattr(bot, "generate_diss", mock_gen)
-        interaction = make_interaction(user_id=bypass_user)
-        target = make_member()
-        await bot.diss.callback(interaction, user=target, intensity=make_intensity("harsh"))
-        assert mock_gen.call_args[0][1] == "harsh"
 
     @pytest.mark.asyncio
     async def test_with_bracket_passes_picks(
@@ -79,8 +55,8 @@ class TestDissCommand:
         target = make_member(user_id=2001)
         db.upsert_bracket(2001, 9001, "Victim", sample_picks)
 
-        await bot.diss.callback(interaction, user=target, intensity=None)
-        assert mock_gen.call_args[0][2] is not None  # bracket_data
+        await bot.diss.callback(interaction, user=target)
+        assert mock_gen.call_args[0][1] is not None  # bracket_data
 
     @pytest.mark.asyncio
     async def test_without_bracket_no_picks(
@@ -92,9 +68,9 @@ class TestDissCommand:
         interaction = make_interaction(user_id=bypass_user)
         target = make_member()
 
-        await bot.diss.callback(interaction, user=target, intensity=None)
-        assert mock_gen.call_args[0][2] is None  # bracket_data
-        assert mock_gen.call_args[0][3] is None  # results
+        await bot.diss.callback(interaction, user=target)
+        assert mock_gen.call_args[0][1] is None  # bracket_data
+        assert mock_gen.call_args[0][2] is None  # results
 
     @pytest.mark.asyncio
     async def test_with_bracket_and_results(
@@ -109,8 +85,8 @@ class TestDissCommand:
         target = make_member(user_id=2001)
         db.upsert_bracket(2001, 9001, "Victim", sample_picks)
 
-        await bot.diss.callback(interaction, user=target, intensity=None)
-        results = mock_gen.call_args[0][3]
+        await bot.diss.callback(interaction, user=target)
+        results = mock_gen.call_args[0][2]
         assert results is not None
         assert "busts" in results
         assert "survivors" in results
@@ -130,8 +106,8 @@ class TestDissCooldown:
         interaction2 = make_interaction(user_id=5001)
         target = make_member()
 
-        await bot.diss.callback(interaction1, user=target, intensity=None)
-        await bot.diss.callback(interaction2, user=target, intensity=None)
+        await bot.diss.callback(interaction1, user=target)
+        await bot.diss.callback(interaction2, user=target)
 
         interaction2.response.send_message.assert_called_once()
         msg = interaction2.response.send_message.call_args[0][0]
@@ -145,8 +121,8 @@ class TestDissCooldown:
         interaction2 = make_interaction(user_id=5001)
         target = make_member()
 
-        await bot.diss.callback(interaction1, user=target, intensity=None)
-        await bot.diss.callback(interaction2, user=target, intensity=None)
+        await bot.diss.callback(interaction1, user=target)
+        await bot.diss.callback(interaction2, user=target)
 
         msg = interaction2.response.send_message.call_args[0][0]
         assert "s." in msg  # contains seconds
@@ -159,8 +135,8 @@ class TestDissCooldown:
         interaction2 = make_interaction(user_id=5001)
         target = make_member()
 
-        await bot.diss.callback(interaction1, user=target, intensity=None)
-        await bot.diss.callback(interaction2, user=target, intensity=None)
+        await bot.diss.callback(interaction1, user=target)
+        await bot.diss.callback(interaction2, user=target)
 
         kwargs = interaction2.response.send_message.call_args.kwargs
         assert kwargs.get("ephemeral") is True
@@ -172,8 +148,8 @@ class TestDissCooldown:
         interaction2 = make_interaction(user_id=bypass_user)
         target = make_member()
 
-        await bot.diss.callback(interaction1, user=target, intensity=None)
-        await bot.diss.callback(interaction2, user=target, intensity=None)
+        await bot.diss.callback(interaction1, user=target)
+        await bot.diss.callback(interaction2, user=target)
 
         # Both should have deferred (no cooldown block)
         assert interaction1.response.defer.call_count == 1
@@ -189,12 +165,12 @@ class TestDissCooldown:
 
         interaction1 = make_interaction(user_id=5001)
         target = make_member()
-        await bot.diss.callback(interaction1, user=target, intensity=None)
+        await bot.diss.callback(interaction1, user=target)
 
         # Advance past cooldown
         fake_time[0] = 1000.0 + 121
         interaction2 = make_interaction(user_id=5001)
-        await bot.diss.callback(interaction2, user=target, intensity=None)
+        await bot.diss.callback(interaction2, user=target)
 
         # Second call should defer (not be blocked)
         interaction2.response.defer.assert_called_once()
@@ -381,15 +357,6 @@ class TestDissHelpCommand:
         msg = interaction.response.send_message.call_args[0][0]
         assert "/diss" in msg
         assert "/submitbracket" in msg
-
-    @pytest.mark.asyncio
-    async def test_content_mentions_intensity(self, make_interaction):
-        interaction = make_interaction()
-        await bot.disshelp.callback(interaction)
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "mild" in msg
-        assert "medium" in msg
-        assert "harsh" in msg
 
     @pytest.mark.asyncio
     async def test_content_mentions_cooldown(self, make_interaction):

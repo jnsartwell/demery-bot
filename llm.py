@@ -20,12 +20,11 @@ OCR_MODEL = "claude-sonnet-4-6"
 
 async def generate_diss(
     target_mention: str,
-    intensity: str,
     bracket_data: dict | None = None,
     results: dict | None = None,
     round_progress: dict | None = None,
 ) -> str:
-    content = f"Taunt {target_mention} at {intensity} intensity."
+    content = f"Taunt {target_mention}."
     if bracket_data:
         content += (
             f"\nPicks: champ={bracket_data['champion']}"
@@ -227,8 +226,9 @@ async def generate_digest(
         "When multiple people share the same bust, roast them as a group — "
         "they walked into this together. "
         "Never cite actual scores or point totals. Use the outcome and the drama, not the numbers. "
-        "1-2 punchy sentences per person, plus shared-bust callouts. Every sentence should land. "
-        "Mild intensity. Wit over volume. Zingers, not lectures. Be Demery. "
+        "One tight zinger per person — a single raised eyebrow built around the funniest specific detail, "
+        "delivered like you almost feel bad about it. Plus shared-bust callouts. Every line must land. "
+        "Wit over volume. Zingers, not observations. Be Demery. "
         "IMPORTANT: Your entire response must be under 2000 characters to fit in a single Discord message."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")

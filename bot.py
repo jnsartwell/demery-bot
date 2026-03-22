@@ -117,24 +117,11 @@ async def before_digest():
 
 
 @client.tree.command(name="diss", description="Have Demery roast someone's bracket picks")
-@app_commands.describe(
-    user="The victim",
-    intensity="How hard to go (default: medium)",
-)
-@app_commands.choices(
-    intensity=[
-        app_commands.Choice(name="mild", value="mild"),
-        app_commands.Choice(name="medium", value="medium"),
-        app_commands.Choice(name="harsh", value="harsh"),
-    ]
-)
+@app_commands.describe(user="The victim")
 async def diss(
     interaction: discord.Interaction,
     user: discord.Member,
-    intensity: app_commands.Choice[str] = None,
 ):
-    intensity_value = intensity.value if intensity else "medium"
-
     if await _check_diss_cooldown(interaction):
         return
 
@@ -147,7 +134,7 @@ async def diss(
         if games:
             results = _compute_bracket_status(bracket_data, games)
             round_progress = _compute_round_progress(games)
-    diss_text = await generate_diss(user.mention, intensity_value, bracket_data, results, round_progress)
+    diss_text = await generate_diss(user.mention, bracket_data, results, round_progress)
     await interaction.followup.send(diss_text)
 
 
@@ -194,16 +181,12 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
 async def disshelp(interaction: discord.Interaction):
     await interaction.response.send_message(
         "**Demery Bot** — March Madness trash talk, powered by AI.\n\n"
-        "**`/diss @user [intensity]`**\n"
+        "**`/diss @user`**\n"
         "Tag someone and Demery will roast their bracket picks.\n"
         "If they've submitted a bracket, the roast gets specific.\n\n"
         "**`/submitbracket [image]`**\n"
         "Upload a screenshot of your filled-out bracket so Demery knows your actual picks. "
         "You get 3 submissions per day — use them to correct a bad parse or swap picks.\n\n"
-        "**Intensity levels:**\n"
-        "- `mild` — light ribbing, almost affectionate\n"
-        "- `medium` — sharp but fun *(default)*\n"
-        "- `harsh` — the most pointed, lands with a wink\n\n"
         "There's a 2-minute cooldown between uses.",
         ephemeral=True,
     )
@@ -217,10 +200,10 @@ async def about(interaction: discord.Interaction):
         "Demery watches your bracket, tracks every bust, and delivers the roasts "
         "you deserve.\n\n"
         "**Commands:**\n"
-        "- `/diss @user [intensity]` — Demery roasts someone's bracket picks\n"
+        "- `/diss @user` — Demery roasts someone's bracket picks\n"
         "- `/submitbracket [image]` — upload a bracket screenshot so Demery knows your picks\n"
         "- `/setchannel #channel` — set the digest channel *(Manage Channels permission required)*\n"
-        "- `/disshelp` — full usage guide and intensity levels\n\n"
+        "- `/disshelp` — full usage guide\n\n"
         "**Daily Digest:** Every morning after tournament games, Demery posts a recap "
         "calling out busted picks and praising survivors across all submitted brackets."
     )
