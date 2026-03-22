@@ -51,7 +51,7 @@ jobs:
             DISCORD_BOT_APPLICATION_ID="${{ vars.DISCORD_BOT_APPLICATION_ID }}" \
             DISCORD_GUILD_ID="${{ vars.DISCORD_GUILD_ID }}" \
             DISCORD_BYPASS_USER_IDS="${{ vars.DISCORD_BYPASS_USER_IDS }}" \
-            TAUNT_HOUR="${{ vars.TAUNT_HOUR }}"
+            diss_HOUR="${{ vars.diss_HOUR }}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_AUTH_TOKEN }}
 

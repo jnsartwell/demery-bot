@@ -34,12 +34,7 @@ async def fetch_tournament_team_names() -> list[str]:
                 data = await _get_json(session, ESPN_SCOREBOARD_API, {"dates": date_str})
             except Exception:
                 continue
-            for event in data.get("events", []):
-                for comp in event.get("competitions", []):
-                    for c in comp.get("competitors", []):
-                        name = c.get("team", {}).get("displayName")
-                        if name:
-                            teams.add(name)
+            teams.update(_extract_team_names_from_events(data.get("events", [])))
 
     _cached_team_names = sorted(teams)
     print(f"Cached {len(_cached_team_names)} ESPN tournament team names")
@@ -79,32 +74,59 @@ async def fetch_today_results(date_str: str) -> list[dict]:
     total_events = len(data.get("events", []))
     results = []
     for event in data.get("events", []):
-        completed = event.get("status", {}).get("type", {}).get("completed")
-        if not completed:
+        game = _parse_game_result(event)
+        if game:
+            results.append(game)
+        else:
             name = event.get("name", "unknown")
             status = event.get("status", {}).get("type", {}).get("name", "unknown")
-            print(f"[espn]   Skipping incomplete: {name} (status={status})")
-            continue
-        competition = event.get("competitions", [{}])[0]
-        competitors = competition.get("competitors", [])
-        winner = next((c for c in competitors if c.get("winner")), None)
-        loser = next((c for c in competitors if not c.get("winner")), None)
-        if not winner or not loser:
-            continue
-        # Round name: prefer notes headline, fall back to type.text
-        # ESPN headline format: "NCAA Men's Basketball Championship - East Region - 1st Round"
-        notes = competition.get("notes", [])
-        headline = notes[0].get("headline", "") if notes else ""
-        round_name = headline.rsplit(" - ", 1)[-1] if " - " in headline else ""
-        if not round_name:
-            round_name = competition.get("type", {}).get("text", "tournament")
-
-        results.append(
-            {
-                "winner": winner["team"]["displayName"],
-                "loser": loser["team"]["displayName"],
-                "round": round_name,
-            }
-        )
+            print(f"[espn]   Skipping: {name} (status={status})")
     print(f"[espn] {total_events} events, {len(results)} completed games returned")
     return results
+
+
+# --- helpers ---
+
+
+def _parse_game_result(event: dict) -> dict | None:
+    """Parse a single ESPN event into {winner, loser, round} or None if incomplete."""
+    completed = event.get("status", {}).get("type", {}).get("completed")
+    if not completed:
+        return None
+
+    competition = event.get("competitions", [{}])[0]
+    competitors = competition.get("competitors", [])
+    winner = next((c for c in competitors if c.get("winner")), None)
+    loser = next((c for c in competitors if not c.get("winner")), None)
+    if not winner or not loser:
+        return None
+
+    round_name = _parse_round_name(competition)
+
+    return {
+        "winner": winner["team"]["displayName"],
+        "loser": loser["team"]["displayName"],
+        "round": round_name,
+    }
+
+
+def _parse_round_name(competition: dict) -> str:
+    """Extract round name from competition notes headline, falling back to type.text."""
+    # ESPN headline format: "NCAA Men's Basketball Championship - East Region - 1st Round"
+    notes = competition.get("notes", [])
+    headline = notes[0].get("headline", "") if notes else ""
+    if " - " in headline:
+        return headline.rsplit(" - ", 1)[-1]
+    return competition.get("type", {}).get("text", "tournament")
+
+
+def _extract_team_names_from_events(events: list[dict]) -> set[str]:
+    """Extract all team displayNames from a list of ESPN events."""
+    teams = set()
+    for event in events:
+        for comp in event.get("competitions", []):
+            for competitor in comp.get("competitors", []):
+                name = competitor.get("team", {}).get("displayName")
+                if name:
+                    teams.add(name)
+    return teams

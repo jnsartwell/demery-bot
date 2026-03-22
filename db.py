@@ -73,7 +73,7 @@ def init_db():
             );
             CREATE TABLE IF NOT EXISTS guild_settings (
                 guild_id        INTEGER PRIMARY KEY,
-                taunt_channel_id INTEGER NOT NULL
+                diss_channel_id INTEGER NOT NULL
             );
         """)
         _run_migrations(con)
@@ -121,15 +121,15 @@ def get_guild_brackets(guild_id: int) -> list[dict]:
 def set_guild_channel(guild_id: int, channel_id: int):
     with sqlite3.connect(DB_PATH) as con:
         con.execute(
-            "INSERT INTO guild_settings (guild_id, taunt_channel_id) VALUES (?, ?) "
-            "ON CONFLICT(guild_id) DO UPDATE SET taunt_channel_id = excluded.taunt_channel_id",
+            "INSERT INTO guild_settings (guild_id, diss_channel_id) VALUES (?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET diss_channel_id = excluded.diss_channel_id",
             (guild_id, channel_id),
         )
 
 
 def get_all_guild_channels() -> list[dict]:
     with sqlite3.connect(DB_PATH) as con:
-        rows = con.execute("SELECT guild_id, taunt_channel_id FROM guild_settings").fetchall()
+        rows = con.execute("SELECT guild_id, diss_channel_id FROM guild_settings").fetchall()
     return [{"guild_id": r[0], "channel_id": r[1]} for r in rows]
 
 

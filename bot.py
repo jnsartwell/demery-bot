@@ -12,13 +12,12 @@ from dotenv import load_dotenv
 
 import db
 import espn
-from html_utils import fetch_html, preprocess_html
+from constants import ROUND_NAME_TO_TIER, ROUND_TIER_ORDER, TOURNAMENT_GAME_DATES
 from llm import (
     generate_digest,
+    generate_diss,
     generate_submission_ack,
-    generate_taunt,
     normalize_team_names,
-    parse_bracket_html,
     parse_bracket_image,
 )
 
@@ -26,54 +25,15 @@ load_dotenv()
 
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 DISCORD_BOT_APPLICATION_ID = int(os.environ["DISCORD_BOT_APPLICATION_ID"])
-DISCORD_GUILD_IDS = [gid.strip() for gid in os.getenv("DISCORD_GUILD_ID", "").split(",") if gid.strip()]
+DISCORD_GUILD_IDS = [guild_id.strip() for guild_id in os.getenv("DISCORD_GUILD_ID", "").split(",") if guild_id.strip()]
 BYPASS_USER_IDS = {int(uid.strip()) for uid in os.getenv("DISCORD_BYPASS_USER_IDS", "").split(",") if uid.strip()}
-TAUNT_HOUR = int(os.getenv("TAUNT_HOUR") or "12")
+diss_HOUR = int(os.getenv("diss_HOUR") or "12")
 EASTERN = zoneinfo.ZoneInfo("America/New_York")
 
 COOLDOWN_SECONDS = 120
 _last_used: dict[int, float] = {}
 _last_submit: dict[int, tuple[str, int]] = {}  # user_id → (YYYYMMDD, count)
 MAX_SUBMIT_PER_DAY = 3
-
-ROUND_TIER_ORDER = [
-    "round_of_32",
-    "sweet_16",
-    "elite_eight",
-    "final_four",
-    "championship_game",
-    "champion",
-]
-ROUND_NAME_TO_TIER = {
-    # ESPN headline format (notes[0].headline) — verified against 2025 tournament data
-    "1st Round": "round_of_32",
-    "2nd Round": "sweet_16",
-    "Sweet 16": "elite_eight",
-    "Elite 8": "final_four",
-    "Final Four": "championship_game",
-    "National Championship": "champion",
-    # Alternate forms — keep as fallback
-    "First Round": "round_of_32",
-    "Second Round": "sweet_16",
-    "Elite Eight": "final_four",
-    "Championship": "champion",
-}
-
-# 2026 NCAA Men's Tournament game dates (YYYYMMDD, Eastern time)
-TOURNAMENT_GAME_DATES = {
-    "20260317",
-    "20260318",  # First Four
-    "20260319",
-    "20260320",  # Round of 64
-    "20260321",
-    "20260322",  # Round of 32
-    "20260326",
-    "20260327",  # Sweet 16
-    "20260328",
-    "20260329",  # Elite Eight
-    "20260404",  # Final Four
-    "20260406",  # Championship
-}
 
 
 class DemeryBot(discord.Client):
@@ -84,11 +44,11 @@ class DemeryBot(discord.Client):
 
     async def setup_hook(self):
         if DISCORD_GUILD_IDS:
-            for gid in DISCORD_GUILD_IDS:
-                guild = discord.Object(id=int(gid))
+            for guild_id in DISCORD_GUILD_IDS:
+                guild = discord.Object(id=int(guild_id))
                 self.tree.copy_global_to(guild=guild)
                 synced = await self.tree.sync(guild=guild)
-                print(f"Synced {len(synced)} commands to guild {gid}")
+                print(f"Synced {len(synced)} commands to guild {guild_id}")
 
             # Remove stale global registrations (guild syncs already done above)
             self.tree.clear_commands(guild=None)
@@ -127,145 +87,10 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     print(f"Command error in '{cmd}': {type(error).__name__}: {error}")
 
 
-# --- helpers ---
-
-
-def _compute_bracket_status(picks: dict, games: list[dict]) -> dict:
-    """Returns {"busts": [...], "survivors": [...]} for one user's picks against game results."""
-    busts, survivors = [], []
-    for game in games:
-        tier = ROUND_NAME_TO_TIER.get(game["round"])
-        if not tier:
-            continue
-        idx = ROUND_TIER_ORDER.index(tier)
-        tiers_at_or_beyond = ROUND_TIER_ORDER[idx:]
-        picked_teams = set()
-        for t in tiers_at_or_beyond:
-            val = picks.get(t, [])
-            picked_teams.update([val] if isinstance(val, str) else val)
-        loser_match = game["loser"] in picked_teams
-        winner_match = game["winner"] in picked_teams
-        if loser_match:
-            furthest = next(
-                (
-                    t
-                    for t in reversed(ROUND_TIER_ORDER)
-                    if game["loser"] in ([picks[t]] if isinstance(picks.get(t), str) else picks.get(t, []))
-                ),
-                tier,
-            )
-            busts.append(
-                {
-                    "team": game["loser"],
-                    "picked_to_reach": furthest,
-                    "lost_in": game["round"],
-                }
-            )
-        if winner_match:
-            survivors.append(
-                {
-                    "team": game["winner"],
-                    "still_alive_through": game["round"],
-                }
-            )
-    return {"busts": busts, "survivors": survivors}
-
-
-async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> str | None:
-    """
-    Core digest logic. Generates a per-guild digest message.
-    If guild_id is given, only process that guild.
-    broadcast=True posts to the configured channel; False returns the message only.
-    """
-    guild_channels = db.get_all_guild_channels()
-    if not guild_channels:
-        print("No guild channels configured — skipping digest")
-        return None
-
-    if guild_id is not None:
-        guild_channels = [gc for gc in guild_channels if gc["guild_id"] == guild_id]
-        if not guild_channels:
-            return None
-
-    today = datetime.datetime.now(EASTERN).strftime("%Y%m%d")
-    today_date = datetime.datetime.now(EASTERN).date()
-    print(f"[digest] Fetching games for {today} (Eastern)")
-
-    # 1. Fetch today's games from ESPN and persist them
-    today_games = await espn.fetch_today_results(today)
-    db.save_game_results(today, today_games)
-    print(f"[digest] ESPN returned {len(today_games)} completed games for today")
-
-    # 2. Backfill missing historical dates (first run after deploy or data loss)
-    tournament_start = datetime.date(2026, 3, 17)  # First Four
-    existing_dates = db.get_game_result_dates()
-    d = tournament_start
-    while d < today_date:
-        ds = d.strftime("%Y%m%d")
-        if ds not in existing_dates:
-            print(f"[digest] Backfilling {ds}")
-            historical_games = await espn.fetch_today_results(ds)
-            db.save_game_results(ds, historical_games)
-        d += datetime.timedelta(days=1)
-
-    # 3. Load ALL cumulative results from DB
-    all_results = db.get_all_game_results()
-    all_games = [{"winner": r["winner"], "loser": r["loser"], "round": r["round"]} for r in all_results]
-    print(f"[digest] {len(all_games)} total cumulative games in DB")
-
-    for g in today_games:
-        tier = ROUND_NAME_TO_TIER.get(g["round"])
-        print(f"[digest]   Today: {g['winner']} beat {g['loser']} | round='{g['round']}' → tier={tier}")
-
-    last_message = None
-    for gc in guild_channels:
-        gid = gc["guild_id"]
-
-        guild_brackets = db.get_guild_brackets(gid)
-        print(f"[digest] Guild {gid}: {len(guild_brackets)} brackets on file")
-        submitters = []
-        for entry in guild_brackets:
-            picks = entry["picks"]
-            r32 = len(picks.get("round_of_32", []))
-            champ = picks.get("champion")
-            print(f"[digest]   User {entry['display_name']}: {r32} R32 picks, champion={champ}")
-            cumulative_status = _compute_bracket_status(picks, all_games)
-            today_status = _compute_bracket_status(picks, today_games)
-            print(
-                f"[digest]   → {entry['display_name']}: "
-                f"{len(cumulative_status['busts'])} total busts ({len(today_status['busts'])} today), "
-                f"{len(cumulative_status['survivors'])} total survivors ({len(today_status['survivors'])} today)"
-            )
-            submitters.append(
-                {
-                    "mention": f"<@{entry['discord_user_id']}>",
-                    "name": entry["display_name"],
-                    "busts": cumulative_status["busts"],
-                    "survivors": cumulative_status["survivors"],
-                    "today_busts": today_status["busts"],
-                    "today_survivors": today_status["survivors"],
-                }
-            )
-
-        if not submitters:
-            print(f"[digest] Guild {gid}: no submitters, skipping")
-            continue
-
-        print(f"[digest] Guild {gid}: sending to LLM with {len(submitters)} submitters")
-        message = await generate_digest(submitters)
-        if broadcast:
-            channel = client.get_channel(gc["channel_id"])
-            if channel:
-                await channel.send(message)
-        last_message = message
-
-    return last_message
-
-
 # --- scheduled task ---
 
 
-@tasks.loop(time=datetime.time(hour=TAUNT_HOUR, tzinfo=datetime.timezone.utc))
+@tasks.loop(time=datetime.time(hour=diss_HOUR, tzinfo=datetime.timezone.utc))
 async def daily_digest_task():
     try:
         yesterday = (datetime.datetime.now(EASTERN) - datetime.timedelta(days=1)).strftime("%Y%m%d")
@@ -298,24 +123,15 @@ async def before_digest():
         app_commands.Choice(name="harsh", value="harsh"),
     ]
 )
-async def taunt(
+async def diss(
     interaction: discord.Interaction,
     user: discord.Member,
     intensity: app_commands.Choice[str] = None,
 ):
     intensity_value = intensity.value if intensity else "medium"
 
-    caller_id = interaction.user.id
-    if caller_id not in BYPASS_USER_IDS:
-        now = time.monotonic()
-        last = _last_used.get(caller_id, 0)
-        remaining = COOLDOWN_SECONDS - (now - last)
-        if remaining > 0:
-            await interaction.response.send_message(
-                f"Chill — you can taunt again in {int(remaining) + 1}s.", ephemeral=True
-            )
-            return
-        _last_used[caller_id] = now
+    if await _check_diss_cooldown(interaction):
+        return
 
     await interaction.response.defer()
     bracket_data = db.get_bracket(user.id, interaction.guild_id)
@@ -324,8 +140,8 @@ async def taunt(
         games = await espn.fetch_tournament_results()
         if games:
             results = _compute_bracket_status(bracket_data, games)
-    taunt_text = await generate_taunt(user.mention, intensity_value, bracket_data, results)
-    await interaction.followup.send(taunt_text)
+    diss_text = await generate_diss(user.mention, intensity_value, bracket_data, results)
+    await interaction.followup.send(diss_text)
 
 
 @client.tree.command(
@@ -334,16 +150,8 @@ async def taunt(
 )
 @app_commands.describe(image="A screenshot of your filled-out bracket")
 async def submit_bracket(interaction: discord.Interaction, image: discord.Attachment):
-    if interaction.user.id not in BYPASS_USER_IDS:
-        today = datetime.datetime.now(EASTERN).strftime("%Y%m%d")
-        last_date, count = _last_submit.get(interaction.user.id, ("", 0))
-        if last_date == today and count >= MAX_SUBMIT_PER_DAY:
-            await interaction.response.send_message(
-                f"You've used all {MAX_SUBMIT_PER_DAY} submissions for today. Try again tomorrow.",
-                ephemeral=True,
-            )
-            return
-        _last_submit[interaction.user.id] = (today, count + 1 if last_date == today else 1)
+    if await _check_submit_rate_limit(interaction):
+        return
 
     await interaction.response.defer()
 
@@ -351,55 +159,6 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
         picks = await parse_bracket_image(image.url)
     except ValueError as e:
         await interaction.followup.send(f"Couldn't read your bracket from that image: {e}", ephemeral=True)
-        return
-
-    # Normalize team names to match ESPN's exact displayName format
-    try:
-        espn_names = await espn.fetch_tournament_team_names()
-        if espn_names:
-            picks = await normalize_team_names(picks, espn_names)
-    except Exception as e:
-        print(f"Team name normalization failed, saving raw picks: {e}")
-
-    db.upsert_bracket(interaction.user.id, interaction.guild_id, interaction.user.display_name, picks)
-    ack = await generate_submission_ack(interaction.user.mention, picks)
-    await interaction.followup.send(ack)
-
-    lines = [
-        f"**Champion:** {picks['champion']}",
-        f"**Championship:** {', '.join(picks['championship_game'])}",
-        f"**Final Four:** {', '.join(picks['final_four'])}",
-        f"**Elite Eight:** {', '.join(picks['elite_eight'])}",
-        f"**Sweet 16:** {', '.join(picks['sweet_16'])}",
-        f"**Round of 32:** {', '.join(picks['round_of_32'])}",
-    ]
-    await interaction.followup.send("\n".join(lines), ephemeral=True)
-
-
-@client.tree.command(
-    name="submitbracket-url",
-    description="Submit a bracket page URL instead of a screenshot (dev only)",
-)
-@app_commands.describe(url="URL of the bracket page")
-async def submit_bracket_url(interaction: discord.Interaction, url: str):
-    if interaction.user.id not in BYPASS_USER_IDS:
-        await interaction.response.send_message("Not for you.", ephemeral=True)
-        return
-
-    await interaction.response.defer()
-
-    try:
-        html = await fetch_html(url)
-    except ValueError as e:
-        await interaction.followup.send(f"Couldn't fetch that URL: {e}", ephemeral=True)
-        return
-
-    cleaned = preprocess_html(html)
-
-    try:
-        picks = await parse_bracket_html(cleaned)
-    except ValueError as e:
-        await interaction.followup.send(f"Couldn't extract bracket picks from that page: {e}", ephemeral=True)
         return
 
     try:
@@ -471,7 +230,6 @@ async def setchannel(interaction: discord.Interaction, channel: str):
     elif channel.strip().isdigit():
         channel_id = int(channel.strip())
     else:
-        # Search by name in this guild
         found = discord.utils.get(interaction.guild.text_channels, name=channel.strip().lstrip("#"))
         if not found:
             await interaction.response.send_message(
@@ -495,8 +253,7 @@ async def setchannel(interaction: discord.Interaction, channel: str):
 
 @client.tree.command(name="debugguild", description="[Dev] Show what the bot can see in this guild")
 async def debugguild(interaction: discord.Interaction):
-    if interaction.user.id not in BYPASS_USER_IDS:
-        await interaction.response.send_message("Not for you.", ephemeral=True)
+    if await _reject_non_dev(interaction):
         return
 
     guild = interaction.guild
@@ -517,8 +274,7 @@ async def debugguild(interaction: discord.Interaction):
 
 @client.tree.command(name="testdigest", description="[Dev] Trigger the daily digest now")
 async def testdigest(interaction: discord.Interaction):
-    if interaction.user.id not in BYPASS_USER_IDS:
-        await interaction.response.send_message("Not for you.", ephemeral=True)
+    if await _reject_non_dev(interaction):
         return
 
     await interaction.response.defer(ephemeral=True)
@@ -537,8 +293,7 @@ async def testdigest(interaction: discord.Interaction):
 
 @client.tree.command(name="pushdigest", description="[Dev] Broadcast the daily digest to the channel now")
 async def pushdigest(interaction: discord.Interaction):
-    if interaction.user.id not in BYPASS_USER_IDS:
-        await interaction.response.send_message("Not for you.", ephemeral=True)
+    if await _reject_non_dev(interaction):
         return
 
     await interaction.response.defer(ephemeral=True)
@@ -553,6 +308,201 @@ async def pushdigest(interaction: discord.Interaction):
             )
     except Exception as e:
         await interaction.followup.send(f"Error: {e}", ephemeral=True)
+
+
+# --- orchestration helpers ---
+
+
+async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> str | None:
+    """
+    Core digest logic. Generates a per-guild digest message.
+    If guild_id is given, only process that guild.
+    broadcast=True posts to the configured channel; False returns the message only.
+    """
+    guild_channels = db.get_all_guild_channels()
+    if not guild_channels:
+        print("No guild channels configured — skipping digest")
+        return None
+
+    if guild_id is not None:
+        guild_channels = [gc for gc in guild_channels if gc["guild_id"] == guild_id]
+        if not guild_channels:
+            return None
+
+    today_games, today_str = await _fetch_and_persist_today_games()
+    today_date = datetime.datetime.strptime(today_str, "%Y%m%d").date()
+    await _backfill_historical_games(today_date)
+
+    all_results = db.get_all_game_results()
+    all_games = [{"winner": r["winner"], "loser": r["loser"], "round": r["round"]} for r in all_results]
+    print(f"[digest] {len(all_games)} total cumulative games in DB")
+
+    for game in today_games:
+        tier = ROUND_NAME_TO_TIER.get(game["round"])
+        print(f"[digest]   Today: {game['winner']} beat {game['loser']} | round='{game['round']}' → tier={tier}")
+
+    last_message = None
+    for guild_channel in guild_channels:
+        submitters = _build_submitters_for_guild(guild_channel["guild_id"], all_games, today_games)
+        if not submitters:
+            print(f"[digest] Guild {guild_channel['guild_id']}: no submitters, skipping")
+            continue
+
+        print(f"[digest] Guild {guild_channel['guild_id']}: sending to LLM with {len(submitters)} submitters")
+        message = await generate_digest(submitters)
+        if broadcast:
+            channel = client.get_channel(guild_channel["channel_id"])
+            if channel:
+                await channel.send(message)
+        last_message = message
+
+    return last_message
+
+
+async def _fetch_and_persist_today_games() -> tuple[list[dict], str]:
+    """Fetch today's ESPN results and persist to DB. Returns (games, date_str)."""
+    today_str = datetime.datetime.now(EASTERN).strftime("%Y%m%d")
+    print(f"[digest] Fetching games for {today_str} (Eastern)")
+    today_games = await espn.fetch_today_results(today_str)
+    db.save_game_results(today_str, today_games)
+    print(f"[digest] ESPN returned {len(today_games)} completed games for today")
+    return today_games, today_str
+
+
+async def _backfill_historical_games(today_date: datetime.date) -> None:
+    """Backfill missing historical dates between tournament start and today."""
+    tournament_start = datetime.date(2026, 3, 17)  # First Four
+    existing_dates = db.get_game_result_dates()
+    d = tournament_start
+    while d < today_date:
+        date_str = d.strftime("%Y%m%d")
+        if date_str not in existing_dates:
+            print(f"[digest] Backfilling {date_str}")
+            historical_games = await espn.fetch_today_results(date_str)
+            db.save_game_results(date_str, historical_games)
+        d += datetime.timedelta(days=1)
+
+
+def _build_submitters_for_guild(guild_id: int, all_games: list[dict], today_games: list[dict]) -> list[dict]:
+    """Load guild brackets and compute cumulative + today-only bracket status for each submitter."""
+    guild_brackets = db.get_guild_brackets(guild_id)
+    print(f"[digest] Guild {guild_id}: {len(guild_brackets)} brackets on file")
+    submitters = []
+    for entry in guild_brackets:
+        picks = entry["picks"]
+        r32 = len(picks.get("round_of_32", []))
+        champ = picks.get("champion")
+        print(f"[digest]   User {entry['display_name']}: {r32} R32 picks, champion={champ}")
+        cumulative_status = _compute_bracket_status(picks, all_games)
+        today_status = _compute_bracket_status(picks, today_games)
+        print(
+            f"[digest]   → {entry['display_name']}: "
+            f"{len(cumulative_status['busts'])} total busts ({len(today_status['busts'])} today), "
+            f"{len(cumulative_status['survivors'])} total survivors ({len(today_status['survivors'])} today)"
+        )
+        submitters.append(
+            {
+                "mention": f"<@{entry['discord_user_id']}>",
+                "name": entry["display_name"],
+                "busts": cumulative_status["busts"],
+                "survivors": cumulative_status["survivors"],
+                "today_busts": today_status["busts"],
+                "today_survivors": today_status["survivors"],
+            }
+        )
+    return submitters
+
+
+# --- guard helpers ---
+
+
+async def _reject_non_dev(interaction: discord.Interaction) -> bool:
+    """Send 'Not for you.' and return True if user is not a dev. Return False if they passed."""
+    if interaction.user.id not in BYPASS_USER_IDS:
+        await interaction.response.send_message("Not for you.", ephemeral=True)
+        return True
+    return False
+
+
+async def _check_diss_cooldown(interaction: discord.Interaction) -> bool:
+    """Check cooldown and send rejection if on cooldown. Return True if rejected, False if clear."""
+    caller_id = interaction.user.id
+    if caller_id in BYPASS_USER_IDS:
+        return False
+    now = time.monotonic()
+    last = _last_used.get(caller_id, 0)
+    remaining = COOLDOWN_SECONDS - (now - last)
+    if remaining > 0:
+        await interaction.response.send_message(f"Chill — you can diss again in {int(remaining) + 1}s.", ephemeral=True)
+        return True
+    _last_used[caller_id] = now
+    return False
+
+
+async def _check_submit_rate_limit(interaction: discord.Interaction) -> bool:
+    """Check daily submission limit and send rejection if exceeded. Return True if rejected, False if clear."""
+    if interaction.user.id in BYPASS_USER_IDS:
+        return False
+    today = datetime.datetime.now(EASTERN).strftime("%Y%m%d")
+    last_date, count = _last_submit.get(interaction.user.id, ("", 0))
+    if last_date == today and count >= MAX_SUBMIT_PER_DAY:
+        await interaction.response.send_message(
+            f"You've used all {MAX_SUBMIT_PER_DAY} submissions for today. Try again tomorrow.",
+            ephemeral=True,
+        )
+        return True
+    _last_submit[interaction.user.id] = (today, count + 1 if last_date == today else 1)
+    return False
+
+
+# --- computation helpers ---
+
+
+def _compute_bracket_status(picks: dict, games: list[dict]) -> dict:
+    """Returns {"busts": [...], "survivors": [...]} for one user's picks against game results."""
+    busts, survivors = [], []
+    for game in games:
+        tier = ROUND_NAME_TO_TIER.get(game["round"])
+        if not tier:
+            continue
+        idx = ROUND_TIER_ORDER.index(tier)
+        tiers_at_or_beyond = ROUND_TIER_ORDER[idx:]
+        picked_teams = set()
+        for t in tiers_at_or_beyond:
+            picked_teams.update(_get_picks_for_tier(picks, t))
+        if game["loser"] in picked_teams:
+            furthest = _find_farthest_picked_round(game["loser"], picks) or tier
+            busts.append(
+                {
+                    "team": game["loser"],
+                    "picked_to_reach": furthest,
+                    "lost_in": game["round"],
+                }
+            )
+        if game["winner"] in picked_teams:
+            survivors.append(
+                {
+                    "team": game["winner"],
+                    "still_alive_through": game["round"],
+                }
+            )
+    return {"busts": busts, "survivors": survivors}
+
+
+def _get_picks_for_tier(picks: dict, tier: str) -> set[str]:
+    """Return the set of team names picked for a given tier, handling str vs list."""
+    val = picks.get(tier, [])
+    if isinstance(val, str):
+        return {val}
+    return set(val)
+
+
+def _find_farthest_picked_round(team: str, picks: dict) -> str | None:
+    """Find the furthest round a team was picked to reach, searching from championship down."""
+    for tier in reversed(ROUND_TIER_ORDER):
+        if team in _get_picks_for_tier(picks, tier):
+            return tier
+    return None
 
 
 if __name__ == "__main__":

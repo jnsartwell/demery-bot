@@ -31,17 +31,17 @@ class TestDissCommand:
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
         interaction = make_interaction(user_id=bypass_user)
         target = make_member()
-        await bot.taunt.callback(interaction, user=target, intensity=None)
+        await bot.diss.callback(interaction, user=target, intensity=None)
         interaction.response.defer.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_mentions_target(self, make_interaction, make_member, bypass_user, mock_anthropic, monkeypatch):
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
         mock_gen = AsyncMock(return_value="roast")
-        monkeypatch.setattr(bot, "generate_taunt", mock_gen)
+        monkeypatch.setattr(bot, "generate_diss", mock_gen)
         interaction = make_interaction(user_id=bypass_user)
         target = make_member(user_id=2001)
-        await bot.taunt.callback(interaction, user=target, intensity=None)
+        await bot.diss.callback(interaction, user=target, intensity=None)
         assert mock_gen.call_args[0][0] == "<@2001>"
 
     @pytest.mark.asyncio
@@ -50,10 +50,10 @@ class TestDissCommand:
     ):
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
         mock_gen = AsyncMock(return_value="roast")
-        monkeypatch.setattr(bot, "generate_taunt", mock_gen)
+        monkeypatch.setattr(bot, "generate_diss", mock_gen)
         interaction = make_interaction(user_id=bypass_user)
         target = make_member()
-        await bot.taunt.callback(interaction, user=target, intensity=None)
+        await bot.diss.callback(interaction, user=target, intensity=None)
         assert mock_gen.call_args[0][1] == "medium"
 
     @pytest.mark.asyncio
@@ -62,10 +62,10 @@ class TestDissCommand:
     ):
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
         mock_gen = AsyncMock(return_value="roast")
-        monkeypatch.setattr(bot, "generate_taunt", mock_gen)
+        monkeypatch.setattr(bot, "generate_diss", mock_gen)
         interaction = make_interaction(user_id=bypass_user)
         target = make_member()
-        await bot.taunt.callback(interaction, user=target, intensity=make_intensity("harsh"))
+        await bot.diss.callback(interaction, user=target, intensity=make_intensity("harsh"))
         assert mock_gen.call_args[0][1] == "harsh"
 
     @pytest.mark.asyncio
@@ -74,12 +74,12 @@ class TestDissCommand:
     ):
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
         mock_gen = AsyncMock(return_value="roast")
-        monkeypatch.setattr(bot, "generate_taunt", mock_gen)
+        monkeypatch.setattr(bot, "generate_diss", mock_gen)
         interaction = make_interaction(user_id=bypass_user, guild_id=9001)
         target = make_member(user_id=2001)
         db.upsert_bracket(2001, 9001, "Victim", sample_picks)
 
-        await bot.taunt.callback(interaction, user=target, intensity=None)
+        await bot.diss.callback(interaction, user=target, intensity=None)
         assert mock_gen.call_args[0][2] is not None  # bracket_data
 
     @pytest.mark.asyncio
@@ -88,11 +88,11 @@ class TestDissCommand:
     ):
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=[]))
         mock_gen = AsyncMock(return_value="roast")
-        monkeypatch.setattr(bot, "generate_taunt", mock_gen)
+        monkeypatch.setattr(bot, "generate_diss", mock_gen)
         interaction = make_interaction(user_id=bypass_user)
         target = make_member()
 
-        await bot.taunt.callback(interaction, user=target, intensity=None)
+        await bot.diss.callback(interaction, user=target, intensity=None)
         assert mock_gen.call_args[0][2] is None  # bracket_data
         assert mock_gen.call_args[0][3] is None  # results
 
@@ -104,12 +104,12 @@ class TestDissCommand:
         games = [{"winner": "Duke Blue Devils", "loser": "Vermont Catamounts", "round": "1st Round"}]
         monkeypatch.setattr(espn, "fetch_tournament_results", AsyncMock(return_value=games))
         mock_gen = AsyncMock(return_value="roast")
-        monkeypatch.setattr(bot, "generate_taunt", mock_gen)
+        monkeypatch.setattr(bot, "generate_diss", mock_gen)
         interaction = make_interaction(user_id=bypass_user, guild_id=9001)
         target = make_member(user_id=2001)
         db.upsert_bracket(2001, 9001, "Victim", sample_picks)
 
-        await bot.taunt.callback(interaction, user=target, intensity=None)
+        await bot.diss.callback(interaction, user=target, intensity=None)
         results = mock_gen.call_args[0][3]
         assert results is not None
         assert "busts" in results
@@ -130,8 +130,8 @@ class TestDissCooldown:
         interaction2 = make_interaction(user_id=5001)
         target = make_member()
 
-        await bot.taunt.callback(interaction1, user=target, intensity=None)
-        await bot.taunt.callback(interaction2, user=target, intensity=None)
+        await bot.diss.callback(interaction1, user=target, intensity=None)
+        await bot.diss.callback(interaction2, user=target, intensity=None)
 
         interaction2.response.send_message.assert_called_once()
         msg = interaction2.response.send_message.call_args[0][0]
@@ -145,8 +145,8 @@ class TestDissCooldown:
         interaction2 = make_interaction(user_id=5001)
         target = make_member()
 
-        await bot.taunt.callback(interaction1, user=target, intensity=None)
-        await bot.taunt.callback(interaction2, user=target, intensity=None)
+        await bot.diss.callback(interaction1, user=target, intensity=None)
+        await bot.diss.callback(interaction2, user=target, intensity=None)
 
         msg = interaction2.response.send_message.call_args[0][0]
         assert "s." in msg  # contains seconds
@@ -159,8 +159,8 @@ class TestDissCooldown:
         interaction2 = make_interaction(user_id=5001)
         target = make_member()
 
-        await bot.taunt.callback(interaction1, user=target, intensity=None)
-        await bot.taunt.callback(interaction2, user=target, intensity=None)
+        await bot.diss.callback(interaction1, user=target, intensity=None)
+        await bot.diss.callback(interaction2, user=target, intensity=None)
 
         kwargs = interaction2.response.send_message.call_args.kwargs
         assert kwargs.get("ephemeral") is True
@@ -172,8 +172,8 @@ class TestDissCooldown:
         interaction2 = make_interaction(user_id=bypass_user)
         target = make_member()
 
-        await bot.taunt.callback(interaction1, user=target, intensity=None)
-        await bot.taunt.callback(interaction2, user=target, intensity=None)
+        await bot.diss.callback(interaction1, user=target, intensity=None)
+        await bot.diss.callback(interaction2, user=target, intensity=None)
 
         # Both should have deferred (no cooldown block)
         assert interaction1.response.defer.call_count == 1
@@ -189,12 +189,12 @@ class TestDissCooldown:
 
         interaction1 = make_interaction(user_id=5001)
         target = make_member()
-        await bot.taunt.callback(interaction1, user=target, intensity=None)
+        await bot.diss.callback(interaction1, user=target, intensity=None)
 
         # Advance past cooldown
         fake_time[0] = 1000.0 + 121
         interaction2 = make_interaction(user_id=5001)
-        await bot.taunt.callback(interaction2, user=target, intensity=None)
+        await bot.diss.callback(interaction2, user=target, intensity=None)
 
         # Second call should defer (not be blocked)
         interaction2.response.defer.assert_called_once()

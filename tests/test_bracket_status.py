@@ -4,7 +4,8 @@ Tests for _compute_bracket_status — covers:
   DS-9: Bust and survivor computation
 """
 
-from bot import ROUND_NAME_TO_TIER, ROUND_TIER_ORDER, _compute_bracket_status
+from bot import _compute_bracket_status
+from constants import ROUND_NAME_TO_TIER, ROUND_TIER_ORDER
 
 # ---------------------------------------------------------------------------
 # DS-8: Round-to-tier mapping
