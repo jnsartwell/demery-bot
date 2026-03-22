@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background gradient -->
+    <radialGradient id="bgGrad" cx="50%" cy="42%" r="55%">
+      <stop offset="0%" stop-color="#1E1E3A"/>
+      <stop offset="100%" stop-color="#0D0D1A"/>
+    </radialGradient>
+
+    <!-- Bot head gradient -->
+    <linearGradient id="headGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3D3D65"/>
+      <stop offset="100%" stop-color="#2A2A4A"/>
+    </linearGradient>
+
+    <!-- Visor screen gradient -->
+    <linearGradient id="visorGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#12121E"/>
+      <stop offset="100%" stop-color="#1A1A2E"/>
+    </linearGradient>
+
+    <!-- Eye glow gradient -->
+    <radialGradient id="eyeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF6B1A"/>
+      <stop offset="70%" stop-color="#E8541A"/>
+      <stop offset="100%" stop-color="#B83D0C"/>
+    </radialGradient>
+
+    <!-- Mouth glow -->
+    <linearGradient id="mouthGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#E8541A"/>
+      <stop offset="50%" stop-color="#FF6B1A"/>
+      <stop offset="100%" stop-color="#E8541A"/>
+    </linearGradient>
+
+    <!-- Bot head glow -->
+    <filter id="headGlow" x="-15%" y="-15%" width="130%" height="130%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="blur"/>
+      <feFlood flood-color="#FF6B1A" flood-opacity="0.2"/>
+      <feComposite in2="blur" operator="in" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Eye light bloom -->
+    <filter id="eyeBloom" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Text glow -->
+    <filter id="textGlow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <circle cx="256" cy="256" r="256" fill="url(#bgGrad)"/>
+  <circle cx="256" cy="256" r="240" fill="none" stroke="#FF6B1A" stroke-width="1" opacity="0.1"/>
+
+  <!-- Flames rising behind the bot head -->
+  <!-- Left flame -->
+  <path d="M 55 330 Q 68 248 92 282 Q 102 228 122 268 Q 132 200 155 250 Q 168 288 155 330 Q 130 368 108 364 Q 78 356 55 330 Z"
+        fill="#FF6B1A" opacity="0.55"/>
+  <path d="M 74 332 Q 84 268 102 295 Q 110 248 126 280 Q 134 228 148 268 Q 158 300 148 335 Q 130 360 116 356 Q 92 348 74 332 Z"
+        fill="#FFB347" opacity="0.6"/>
+  <path d="M 92 335 Q 100 288 112 310 Q 118 280 128 305 Q 135 322 128 342 Q 116 355 110 352 Q 100 346 92 335 Z"
+        fill="#FFD98E" opacity="0.55"/>
+
+  <!-- Right flame -->
+  <path d="M 358 325 Q 368 240 392 278 Q 402 218 420 260 Q 432 195 450 248 Q 460 288 450 332 Q 428 370 405 365 Q 378 356 358 325 Z"
+        fill="#FF6B1A" opacity="0.55"/>
+  <path d="M 375 328 Q 384 255 400 285 Q 408 235 422 270 Q 432 215 445 260 Q 452 295 445 335 Q 425 362 410 358 Q 390 350 375 328 Z"
+        fill="#FFB347" opacity="0.6"/>
+  <path d="M 392 332 Q 400 290 410 312 Q 416 280 425 305 Q 432 322 425 342 Q 415 355 408 352 Q 398 346 392 332 Z"
+        fill="#FFD98E" opacity="0.55"/>
+
+  <!-- Center flame (behind head, taller) -->
+  <path d="M 205 265 Q 218 178 240 218 Q 248 148 266 200 Q 278 138 296 195 Q 310 240 296 275 Q 266 310 254 306 Q 228 298 205 265 Z"
+        fill="#FF6B1A" opacity="0.35"/>
+  <path d="M 222 272 Q 232 202 248 235 Q 254 178 268 218 Q 278 165 290 210 Q 300 252 290 280 Q 268 305 258 302 Q 238 295 222 272 Z"
+        fill="#FFB347" opacity="0.4"/>
+
+  <!-- Bot head — truly centered, bigger -->
+  <g filter="url(#headGlow)">
+    <!--
+      Head rect: 400w x 300h, centered at (256, 256)
+      x=56, y=106, bottom=406
+      Vertical center = 106 + 150 = 256 ✓
+      Horizontal center = 56 + 200 = 256 ✓
+    -->
+    <rect x="56" y="106" width="400" height="300" rx="56" ry="56" fill="url(#headGrad)" stroke="#FF6B1A" stroke-width="3" stroke-opacity="0.45"/>
+
+    <!-- Inner edge highlight -->
+    <rect x="60" y="110" width="392" height="292" rx="54" ry="54" fill="none" stroke="#FFFFFF" stroke-width="1" stroke-opacity="0.06"/>
+
+    <!-- Visor screen — wider to match bigger head -->
+    <rect x="98" y="135" width="316" height="62" rx="15" ry="15" fill="url(#visorGrad)" stroke="#FF6B1A" stroke-width="1.5" stroke-opacity="0.25"/>
+
+    <!-- @!#% grawlix on the visor screen -->
+    <text x="256" y="180"
+          font-family="'Courier New', 'SF Mono', monospace"
+          font-size="40"
+          font-weight="700"
+          text-anchor="middle"
+          fill="#FF6B1A"
+          letter-spacing="10"
+          filter="url(#textGlow)"
+          opacity="0.9">@!#%</text>
+
+    <!-- Antenna -->
+    <line x1="256" y1="106" x2="256" y2="62" stroke="#3D3D65" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="256" cy="54" r="13" fill="#FF6B1A" opacity="0.9"/>
+    <circle cx="256" cy="54" r="13" fill="none" filter="url(#eyeBloom)" opacity="0.5"/>
+
+    <!-- Eyes — wider, menacing diamond slits -->
+    <g filter="url(#eyeBloom)">
+      <!-- Left eye -->
+      <path d="M 105 265 L 162 245 L 210 265 L 162 280 Z" fill="url(#eyeGlow)"/>
+      <!-- Right eye -->
+      <path d="M 302 265 L 350 245 L 407 265 L 350 280 Z" fill="url(#eyeGlow)"/>
+    </g>
+
+    <!-- Eye bright centers -->
+    <ellipse cx="162" cy="264" rx="12" ry="6" fill="#FFFFFF" opacity="0.55"/>
+    <ellipse cx="350" cy="264" rx="12" ry="6" fill="#FFFFFF" opacity="0.55"/>
+
+    <!-- Smirk mouth — clean bezier with sharp uptick -->
+    <path d="M 150 348 C 195 365 310 365 360 350 C 372 346 384 334 392 322"
+          stroke="url(#mouthGrad)" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+    <!-- Teeth hint -->
+    <line x1="205" y1="355" x2="205" y2="363" stroke="#FF6B1A" stroke-width="2" opacity="0.35" stroke-linecap="round"/>
+    <line x1="256" y1="358" x2="256" y2="366" stroke="#FF6B1A" stroke-width="2" opacity="0.3" stroke-linecap="round"/>
+    <line x1="307" y1="356" x2="307" y2="364" stroke="#FF6B1A" stroke-width="2" opacity="0.25" stroke-linecap="round"/>
+  </g>
+
+  <!-- Side accents — tech dots -->
+  <circle cx="38" cy="265" r="4" fill="#FF6B1A" opacity="0.25"/>
+  <circle cx="30" cy="285" r="3" fill="#FF6B1A" opacity="0.15"/>
+  <circle cx="474" cy="260" r="4" fill="#FF6B1A" opacity="0.25"/>
+  <circle cx="482" cy="280" r="3" fill="#FF6B1A" opacity="0.15"/>
+</svg>
