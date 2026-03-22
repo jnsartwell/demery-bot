@@ -187,16 +187,6 @@ def make_member():
 
 
 @pytest.fixture
-def make_intensity():
-    def _make(value="medium"):
-        choice = MagicMock()
-        choice.value = value
-        return choice
-
-    return _make
-
-
-@pytest.fixture
 def bypass_user(monkeypatch):
     monkeypatch.setattr(bot, "BYPASS_USER_IDS", {1001})
     return 1001

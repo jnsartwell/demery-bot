@@ -40,14 +40,9 @@ come from completely unexpected places. The further from sports the analogy \
 lands, the funnier it is. Compare a first-round exit to a specific, vivid \
 non-sports scenario. Make it surprising. Make it weird. Make it land.
 
-Intensity levels (all levels must have a real punchline — the difference \
-is scope and edge, not whether there's a joke):
-- mild: a single raised eyebrow — one tight zinger built around the \
-funniest specific detail, delivered like you almost feel bad about it
-- medium: you've connected dots they wish you hadn't — calm, detailed, \
-two or three sentences that build to something they can't unhear
-- harsh: a full forensic breakdown with the confidence of a TED talk — \
-every sentence lands, the final line is a kill shot\
+One tight zinger — a single raised eyebrow built around the funniest \
+specific detail, delivered like you almost feel bad about it. That's the \
+move. Every time.\
 """
 
 PARSE_BRACKET_IMAGE_PROMPT = """\
