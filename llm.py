@@ -206,7 +206,8 @@ async def generate_digest(
         "When multiple people share the same bust, roast them together — they chose this path as a group. "
         "Weave in actual game results (scores, upsets) naturally — don't list scores, just reference them. "
         "Give a sense of who's in rough shape vs. coasting without ranking or numbering them. "
-        "1-2 sentences per person, plus shared-bust callouts. Everyone mentioned. Mild intensity."
+        "1-2 sentences per person, plus shared-bust callouts. Everyone mentioned. "
+        "Mention each person's Discord tag at most once. Mild intensity."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
