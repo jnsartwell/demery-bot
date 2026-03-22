@@ -20,6 +20,7 @@ async def generate_diss(
     intensity: str,
     bracket_data: dict | None = None,
     results: dict | None = None,
+    round_progress: dict | None = None,
 ) -> str:
     content = f"Taunt {target_mention} at {intensity} intensity."
     if bracket_data:
@@ -36,6 +37,8 @@ async def generate_diss(
             content += f"\nBusts: {_fmt_busts(results['busts'])}"
         if results["survivors"]:
             content += f"\nAlive: {_fmt_survs(results['survivors'])}"
+    if round_progress:
+        content += f"\n{_fmt_round_progress(round_progress)}"
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=200,
@@ -170,6 +173,7 @@ async def generate_digest(
     submitters: list[dict],
     today_games: list[dict] | None = None,
     shared_busts: list[dict] | None = None,
+    round_progress: dict | None = None,
 ) -> str:
     """
     submitters: [{mention, name, busts: [{team, pick, lost}],
@@ -191,6 +195,9 @@ async def generate_digest(
         content += "\n\nShared busts (multiple people picked these losers): " + "; ".join(
             f"{sb['team']} ({', '.join(sb['mentions'])})" for sb in shared_busts
         )
+
+    if round_progress:
+        content += f"\n\n{_fmt_round_progress(round_progress)}"
 
     content += (
         "\n\nDaily bracket update. Plain text, no markdown. Varied openers. "
@@ -229,6 +236,15 @@ def _fmt_busts(busts: list[dict]) -> str:
 def _fmt_survs(survs: list[dict]) -> str:
     """Format survivor list as compact semicolon-delimited string."""
     return "; ".join(f"{s['team']} (thru={s['thru']})" for s in survs)
+
+
+def _fmt_round_progress(round_progress: dict) -> str:
+    """Format round progress as a compact status line for the LLM."""
+    parts = []
+    for rnd, info in round_progress.items():
+        status = "COMPLETE" if info["completed"] >= info["total"] else "IN PROGRESS"
+        parts.append(f"{rnd} {status} ({info['completed']}/{info['total']})")
+    return "Round status: " + " | ".join(parts)
 
 
 def _fmt_games(games: list[dict]) -> str:

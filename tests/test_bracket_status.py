@@ -1,11 +1,12 @@
 """
-Tests for _compute_bracket_status and _compute_shared_busts — covers:
+Tests for _compute_bracket_status, _compute_round_progress, and _compute_shared_busts — covers:
   DS-8: Round-to-tier mapping
-  DS-9: Bust and survivor computation
+  DS-9: Bust and survivor computation (including deduplication)
+  DS-11: Round progress computation
   US-17: Cross-bracket shared busts
 """
 
-from bot import _compute_bracket_status, _compute_shared_busts
+from bot import _compute_bracket_status, _compute_round_progress, _compute_shared_busts
 from constants import ROUND_NAME_TO_TIER, ROUND_TIER_ORDER
 
 # ---------------------------------------------------------------------------
@@ -168,6 +169,91 @@ class TestComputeBracketStatus:
         assert len(result["busts"]) == 1
         assert result["busts"][0]["pick"] == "elite_eight"
         assert result["busts"][0]["lost"] == "2nd Round"
+
+    def test_survivor_deduplication_across_rounds(self):
+        """A team winning in Round 1 and Round 2 should appear once with thru=2nd Round."""
+        picks = self._picks(
+            round_of_32=["Duke Blue Devils"],
+            sweet_16=["Duke Blue Devils"],
+        )
+        games = [
+            {"winner": "Duke Blue Devils", "loser": "Vermont Catamounts", "round": "1st Round"},
+            {"winner": "Duke Blue Devils", "loser": "Someone Else", "round": "2nd Round"},
+        ]
+        result = _compute_bracket_status(picks, games)
+        assert len(result["survivors"]) == 1
+        assert result["survivors"][0]["team"] == "Duke Blue Devils"
+        assert result["survivors"][0]["thru"] == "2nd Round"
+
+    def test_survivor_deduplication_keeps_latest_round(self):
+        """A team winning 3 consecutive rounds should have a single entry with the latest round."""
+        picks = self._picks(
+            round_of_32=["Duke Blue Devils"],
+            sweet_16=["Duke Blue Devils"],
+            elite_eight=["Duke Blue Devils"],
+        )
+        games = [
+            {"winner": "Duke Blue Devils", "loser": "A", "round": "1st Round"},
+            {"winner": "Duke Blue Devils", "loser": "B", "round": "2nd Round"},
+            {"winner": "Duke Blue Devils", "loser": "C", "round": "Sweet 16"},
+        ]
+        result = _compute_bracket_status(picks, games)
+        assert len(result["survivors"]) == 1
+        assert result["survivors"][0]["thru"] == "Sweet 16"
+
+    def test_no_false_dedup_different_teams(self):
+        """Two different teams winning should both appear in survivors."""
+        picks = self._picks(
+            round_of_32=["Duke Blue Devils", "Kansas Jayhawks"],
+        )
+        games = [
+            {"winner": "Duke Blue Devils", "loser": "A", "round": "1st Round"},
+            {"winner": "Kansas Jayhawks", "loser": "B", "round": "1st Round"},
+        ]
+        result = _compute_bracket_status(picks, games)
+        assert len(result["survivors"]) == 2
+        teams = {s["team"] for s in result["survivors"]}
+        assert teams == {"Duke Blue Devils", "Kansas Jayhawks"}
+
+
+# ---------------------------------------------------------------------------
+# DS-11: Round progress computation
+# ---------------------------------------------------------------------------
+
+
+class TestComputeRoundProgress:
+    def test_round_in_progress(self):
+        """8 of 32 first-round games should show as in-progress."""
+        games = [{"winner": f"W{i}", "loser": f"L{i}", "round": "1st Round"} for i in range(8)]
+        progress = _compute_round_progress(games)
+        assert progress["1st Round"]["completed"] == 8
+        assert progress["1st Round"]["total"] == 32
+
+    def test_round_complete(self):
+        """All 32 first-round games should show as complete."""
+        games = [{"winner": f"W{i}", "loser": f"L{i}", "round": "1st Round"} for i in range(32)]
+        progress = _compute_round_progress(games)
+        assert progress["1st Round"]["completed"] == 32
+        assert progress["1st Round"]["total"] == 32
+
+    def test_multiple_rounds_mixed(self):
+        """1st round complete + 2nd round partial should both appear correctly."""
+        games = [{"winner": f"W{i}", "loser": f"L{i}", "round": "1st Round"} for i in range(32)]
+        games += [{"winner": f"W{i}", "loser": f"L{i}", "round": "2nd Round"} for i in range(8)]
+        progress = _compute_round_progress(games)
+        assert progress["1st Round"] == {"completed": 32, "total": 32}
+        assert progress["2nd Round"] == {"completed": 8, "total": 16}
+
+    def test_empty_games(self):
+        """No games should return empty dict."""
+        progress = _compute_round_progress([])
+        assert progress == {}
+
+    def test_unknown_round_excluded(self):
+        """Play-in / First Four games should not appear in progress."""
+        games = [{"winner": "A", "loser": "B", "round": "First Four"}]
+        progress = _compute_round_progress(games)
+        assert progress == {}
 
 
 # ---------------------------------------------------------------------------
