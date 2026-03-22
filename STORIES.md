@@ -197,7 +197,7 @@ Acceptance criteria:
   skipping digest".
 
 
-US-13  Submit a bracket via URL
+US-13  Submit a bracket via URL  [PARKING LOT]
 ----------------------------------------------------------------------
 As a DEV, I can type `/submitbracket-url [url]` and provide a bracket
 page URL instead of a screenshot so I can submit brackets more easily

@@ -12,13 +12,12 @@ from dotenv import load_dotenv
 
 import db
 import espn
-from html_utils import fetch_html, preprocess_html
+from constants import ROUND_NAME_TO_TIER, ROUND_TIER_ORDER, TOURNAMENT_GAME_DATES
 from llm import (
     generate_digest,
     generate_submission_ack,
     generate_taunt,
     normalize_team_names,
-    parse_bracket_html,
     parse_bracket_image,
 )
 
@@ -35,45 +34,6 @@ COOLDOWN_SECONDS = 120
 _last_used: dict[int, float] = {}
 _last_submit: dict[int, tuple[str, int]] = {}  # user_id → (YYYYMMDD, count)
 MAX_SUBMIT_PER_DAY = 3
-
-ROUND_TIER_ORDER = [
-    "round_of_32",
-    "sweet_16",
-    "elite_eight",
-    "final_four",
-    "championship_game",
-    "champion",
-]
-ROUND_NAME_TO_TIER = {
-    # ESPN headline format (notes[0].headline) — verified against 2025 tournament data
-    "1st Round": "round_of_32",
-    "2nd Round": "sweet_16",
-    "Sweet 16": "elite_eight",
-    "Elite 8": "final_four",
-    "Final Four": "championship_game",
-    "National Championship": "champion",
-    # Alternate forms — keep as fallback
-    "First Round": "round_of_32",
-    "Second Round": "sweet_16",
-    "Elite Eight": "final_four",
-    "Championship": "champion",
-}
-
-# 2026 NCAA Men's Tournament game dates (YYYYMMDD, Eastern time)
-TOURNAMENT_GAME_DATES = {
-    "20260317",
-    "20260318",  # First Four
-    "20260319",
-    "20260320",  # Round of 64
-    "20260321",
-    "20260322",  # Round of 32
-    "20260326",
-    "20260327",  # Sweet 16
-    "20260328",
-    "20260329",  # Elite Eight
-    "20260404",  # Final Four
-    "20260406",  # Championship
-}
 
 
 class DemeryBot(discord.Client):
@@ -354,54 +314,6 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
         return
 
     # Normalize team names to match ESPN's exact displayName format
-    try:
-        espn_names = await espn.fetch_tournament_team_names()
-        if espn_names:
-            picks = await normalize_team_names(picks, espn_names)
-    except Exception as e:
-        print(f"Team name normalization failed, saving raw picks: {e}")
-
-    db.upsert_bracket(interaction.user.id, interaction.guild_id, interaction.user.display_name, picks)
-    ack = await generate_submission_ack(interaction.user.mention, picks)
-    await interaction.followup.send(ack)
-
-    lines = [
-        f"**Champion:** {picks['champion']}",
-        f"**Championship:** {', '.join(picks['championship_game'])}",
-        f"**Final Four:** {', '.join(picks['final_four'])}",
-        f"**Elite Eight:** {', '.join(picks['elite_eight'])}",
-        f"**Sweet 16:** {', '.join(picks['sweet_16'])}",
-        f"**Round of 32:** {', '.join(picks['round_of_32'])}",
-    ]
-    await interaction.followup.send("\n".join(lines), ephemeral=True)
-
-
-@client.tree.command(
-    name="submitbracket-url",
-    description="Submit a bracket page URL instead of a screenshot (dev only)",
-)
-@app_commands.describe(url="URL of the bracket page")
-async def submit_bracket_url(interaction: discord.Interaction, url: str):
-    if interaction.user.id not in BYPASS_USER_IDS:
-        await interaction.response.send_message("Not for you.", ephemeral=True)
-        return
-
-    await interaction.response.defer()
-
-    try:
-        html = await fetch_html(url)
-    except ValueError as e:
-        await interaction.followup.send(f"Couldn't fetch that URL: {e}", ephemeral=True)
-        return
-
-    cleaned = preprocess_html(html)
-
-    try:
-        picks = await parse_bracket_html(cleaned)
-    except ValueError as e:
-        await interaction.followup.send(f"Couldn't extract bracket picks from that page: {e}", ephemeral=True)
-        return
-
     try:
         espn_names = await espn.fetch_tournament_team_names()
         if espn_names:

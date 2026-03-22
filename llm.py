@@ -5,39 +5,14 @@ import re
 import aiohttp
 import anthropic
 
+from constants import PICKS_ROUND_KEYS, REQUIRED_PICKS_KEYS
+from prompts import (
+    NORMALIZE_TEAM_NAMES_PROMPT,
+    PARSE_BRACKET_IMAGE_PROMPT,
+    SYSTEM_PROMPT,
+)
+
 client = anthropic.AsyncAnthropic()
-
-SYSTEM_PROMPT = """\
-You are Demery — not the type you'd expect to talk trash, until March Madness \
-starts and something unlocks. Demery has a knack for looking at someone's bracket \
-and delivering the most creatively devastating assessment anyone's ever heard, \
-all in the tone of someone commenting on the weather. The humor comes from \
-deadpan delivery of absurd observations — ridiculous analogies, creative \
-comparisons, and hypotheticals that escalate to silly places. Demery never \
-yells, never gets mean, just calmly explains why your bracket is a work of \
-fiction. Use specific details when you have them — a team that got bounced in \
-the first round after someone picked them for the Final Four is comedy gold.
-
-Keep it to 2-3 sentences max. Keep it safe for work — no profanity, no slurs, \
-no sexual language, no crude body humor, no violent imagery. Nothing you \
-couldn't say on ESPN's broadcast desk. You're roasting friends, not strangers. \
-Everyone at the table is laughing, including the target.
-
-When referring to someone, use ONLY their Discord tag (e.g. <@123456>) — \
-never type out their name next to it or anywhere else. The tag already \
-renders as their name in Discord. Mention each person at most once.
-
-Never recycle the same joke structure or phrasing across responses. If a \
-comparison feels like something any sports podcast would say, throw it out \
-and find something weirder. Be original every time.
-
-Intensity levels:
-- mild: a raised eyebrow — you almost admire the optimism
-- medium: calm, detailed breakdown of exactly how wrong they are — analogies, \
-hypotheticals, deadpan escalation
-- harsh: a masterclass in creative destruction — still deadpan, still calm, \
-but every sentence lands harder\
-"""
 
 
 async def generate_taunt(
@@ -54,6 +29,8 @@ async def generate_taunt(
             f"\n- Championship game: {', '.join(bracket_data['championship_game'])}"
             f"\n- Final Four: {', '.join(bracket_data['final_four'])}"
             f"\n- Elite Eight: {', '.join(bracket_data['elite_eight'])}"
+            f"\n- Sweet 16: {', '.join(bracket_data['sweet_16'])}"
+            f"\n- Round of 32: {', '.join(bracket_data['round_of_32'])}"
             f"\n\nMake the roast specific to their picks where it's funny."
         )
     if results:
@@ -122,35 +99,6 @@ async def parse_bracket_image(image_url: str) -> dict:
 
     image_b64 = base64.standard_b64encode(image_bytes).decode()
 
-    prompt = """\
-This is a March Madness bracket image. Extract the user's PICKS for each round.
-
-IMPORTANT CONTEXT:
-- This may be a screenshot from ESPN, Yahoo, CBS, or any other bracket provider, taken mid-tournament.
-- Different apps use different visual indicators for results: green circles, checkmarks, \
-highlights for correct picks; red X marks, strikethroughs, grayed-out or faded names for \
-wrong picks. Ignore all of these indicators.
-- We want the user's ORIGINAL PICKS, not actual results. Extract every team they picked to \
-advance in each round, whether that pick was correct or not.
-- Eliminated or busted picks may appear faded, crossed out, or marked wrong — extract them anyway.
-
-Use full ESPN display names (e.g. "Duke Blue Devils", "Arizona Wildcats", "UConn Huskies").
-
-RESPOND WITH ONLY RAW JSON. No markdown, no code fences, no explanation, no text before or after.
-Your entire response must be valid JSON and nothing else.
-
-{
-  "round_of_32": ["<32 team names — teams picked to win the First Round>"],
-  "sweet_16": ["<16 team names — teams picked to win the Second Round>"],
-  "elite_eight": ["<8 team names — teams picked to win the Sweet 16>"],
-  "final_four": ["<4 team names — teams picked to win the Elite Eight>"],
-  "championship_game": ["<2 team names — teams picked to win the Final Four>"],
-  "champion": "<1 team name — picked to win the Championship>"
-}
-
-If you cannot read the bracket clearly or any round is missing, respond with only:
-{"error": "reason the bracket could not be parsed"}"""
-
     response = await client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1000,
@@ -166,7 +114,7 @@ If you cannot read the bracket clearly or any round is missing, respond with onl
                             "data": image_b64,
                         },
                     },
-                    {"type": "text", "text": prompt},
+                    {"type": "text", "text": PARSE_BRACKET_IMAGE_PROMPT},
                 ],
             }
         ],
@@ -208,64 +156,11 @@ def _extract_and_validate_picks(raw: str) -> dict:
     if "error" in picks:
         raise ValueError(f"Claude could not read bracket: {picks['error']}")
 
-    required_keys = {
-        "round_of_32",
-        "sweet_16",
-        "elite_eight",
-        "final_four",
-        "championship_game",
-        "champion",
-    }
-    missing = required_keys - picks.keys()
+    missing = REQUIRED_PICKS_KEYS - picks.keys()
     if missing:
         raise ValueError(f"Bracket picks missing rounds: {missing}")
 
     return picks
-
-
-async def parse_bracket_html(html: str) -> dict:
-    """
-    Send preprocessed HTML/data to Claude to extract bracket picks.
-    Returns picks dict with the same schema as parse_bracket_image.
-    Raises ValueError if picks cannot be extracted.
-    """
-    prompt = f"""\
-This is preprocessed content from a March Madness bracket page. Extract the user's PICKS for each round.
-
-IMPORTANT CONTEXT:
-- This may be from ESPN, Yahoo, CBS, or any other bracket provider.
-- We want the user's ORIGINAL PICKS, not actual tournament results.
-- Look for team names in the HTML structure, embedded JSON data, or text content.
-
-Use full ESPN display names (e.g. "Duke Blue Devils", "Arizona Wildcats", "UConn Huskies").
-
-RESPOND WITH ONLY RAW JSON. No markdown, no code fences, no explanation, no text before or after.
-Your entire response must be valid JSON and nothing else.
-
-{{
-  "round_of_32": ["<32 team names — teams picked to win the First Round>"],
-  "sweet_16": ["<16 team names — teams picked to win the Second Round>"],
-  "elite_eight": ["<8 team names — teams picked to win the Sweet 16>"],
-  "final_four": ["<4 team names — teams picked to win the Elite Eight>"],
-  "championship_game": ["<2 team names — teams picked to win the Final Four>"],
-  "champion": "<1 team name — picked to win the Championship>"
-}}
-
-If you cannot extract bracket picks from this content, respond with only:
-{{"error": "reason the bracket could not be parsed"}}
-
-PAGE CONTENT:
-{html}"""
-
-    response = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = response.content[0].text.strip()
-    print(f"parse_bracket_html raw response ({len(raw)} chars): {raw[:200]}")
-    return _extract_and_validate_picks(raw)
 
 
 async def normalize_team_names(picks: dict, espn_names: list[str]) -> dict:
@@ -277,27 +172,16 @@ async def normalize_team_names(picks: dict, espn_names: list[str]) -> dict:
         return picks
 
     all_pick_names = []
-    for key in ["round_of_32", "sweet_16", "elite_eight", "final_four", "championship_game"]:
+    for key in PICKS_ROUND_KEYS:
         all_pick_names.extend(picks.get(key, []))
     if picks.get("champion"):
         all_pick_names.append(picks["champion"])
     unique_picks = list(set(all_pick_names))
 
-    prompt = f"""\
-Match each team name from a user's bracket picks to the closest ESPN official team name.
-
-ESPN official names:
-{json.dumps(sorted(espn_names))}
-
-User's bracket names:
-{json.dumps(unique_picks)}
-
-Return a JSON object mapping each user name to the correct ESPN name.
-If a user name already exactly matches an ESPN name, include it unchanged.
-If a user name has no plausible ESPN match, keep the original.
-
-RESPOND WITH ONLY RAW JSON. No markdown, no explanation.
-Example: {{"Duke": "Duke Blue Devils", "UConn Huskies": "Connecticut Huskies"}}"""
+    prompt = NORMALIZE_TEAM_NAMES_PROMPT.format(
+        espn_names=json.dumps(sorted(espn_names)),
+        unique_picks=json.dumps(unique_picks),
+    )
 
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -326,7 +210,7 @@ Example: {{"Duke": "Duke Blue Devils", "UConn Huskies": "Connecticut Huskies"}}"
         return val if isinstance(val, str) else name  # guard against non-string values
 
     normalized = {}
-    for key in ["round_of_32", "sweet_16", "elite_eight", "final_four", "championship_game"]:
+    for key in PICKS_ROUND_KEYS:
         normalized[key] = [_replace(t) for t in picks.get(key, [])]
     normalized["champion"] = _replace(picks.get("champion", ""))
 
