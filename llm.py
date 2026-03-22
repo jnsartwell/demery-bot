@@ -15,7 +15,7 @@ from prompts import (
 client = anthropic.AsyncAnthropic()
 
 
-async def generate_taunt(
+async def generate_diss(
     target_mention: str,
     intensity: str,
     bracket_data: dict | None = None,
@@ -125,44 +125,6 @@ async def parse_bracket_image(image_url: str) -> dict:
     return _extract_and_validate_picks(raw)
 
 
-def _extract_and_validate_picks(raw: str) -> dict:
-    """
-    Extract and validate bracket picks JSON from raw LLM response text.
-    Handles markdown fences, surrounding text, and validates required keys.
-    Raises ValueError on parse failure, error responses, or missing rounds.
-    """
-    # Try to extract JSON from markdown code fences or surrounding text
-    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
-    if fence_match:
-        raw = fence_match.group(1).strip()
-    elif not raw.startswith("{"):
-        start = raw.find("{")
-        if start != -1:
-            raw = raw[start:]
-            for end in range(len(raw), 0, -1):
-                if raw[end - 1] == "}":
-                    try:
-                        json.loads(raw[:end])
-                        raw = raw[:end]
-                        break
-                    except json.JSONDecodeError:
-                        continue
-
-    try:
-        picks = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Could not parse bracket JSON: {e}") from e
-
-    if "error" in picks:
-        raise ValueError(f"Claude could not read bracket: {picks['error']}")
-
-    missing = REQUIRED_PICKS_KEYS - picks.keys()
-    if missing:
-        raise ValueError(f"Bracket picks missing rounds: {missing}")
-
-    return picks
-
-
 async def normalize_team_names(picks: dict, espn_names: list[str]) -> dict:
     """
     Normalize team names in picks to match ESPN's exact displayName values.
@@ -190,14 +152,9 @@ async def normalize_team_names(picks: dict, espn_names: list[str]) -> dict:
     )
 
     raw = response.content[0].text.strip()
-    # Strip markdown fences if present
-    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
-    if fence_match:
-        raw = fence_match.group(1).strip()
-
     try:
-        name_map = json.loads(raw)
-    except json.JSONDecodeError:
+        name_map = json.loads(_extract_json_from_text(raw))
+    except ValueError:
         print(f"normalize_team_names: failed to parse response, skipping. Raw: {raw[:200]}")
         return picks
 
@@ -205,14 +162,14 @@ async def normalize_team_names(picks: dict, espn_names: list[str]) -> dict:
         print(f"normalize_team_names: expected dict, got {type(name_map).__name__}, skipping")
         return picks
 
-    def _replace(name):
+    def _apply_mapping(name):
         val = name_map.get(name, name)
-        return val if isinstance(val, str) else name  # guard against non-string values
+        return val if isinstance(val, str) else name
 
     normalized = {}
     for key in PICKS_ROUND_KEYS:
-        normalized[key] = [_replace(t) for t in picks.get(key, [])]
-    normalized["champion"] = _replace(picks.get("champion", ""))
+        normalized[key] = [_apply_mapping(t) for t in picks.get(key, [])]
+    normalized["champion"] = _apply_mapping(picks.get("champion", ""))
 
     changed = {k: v for k, v in name_map.items() if k != v and isinstance(v, str)}
     if changed:
@@ -227,61 +184,10 @@ async def generate_digest(submitters: list[dict]) -> str:
                   survivors: [{team, still_alive_through}]}]
     Returns a single message roasting/praising everyone.
     """
-    lines = []
-    for s in submitters:
-        parts = [s["mention"]]
-        today_busts = s.get("today_busts", [])
-        today_survivors = s.get("today_survivors", [])
-        if today_busts:
-            bust_strs = [
-                f"{b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})" for b in today_busts
-            ]
-            parts.append("TODAY'S BUSTS: " + "; ".join(bust_strs))
-        if today_survivors:
-            surv_strs = [f"{sv['team']} (still alive through {sv['still_alive_through']})" for sv in today_survivors]
-            parts.append("TODAY'S SURVIVORS: " + "; ".join(surv_strs))
-        if s["busts"]:
-            bust_strs = [
-                f"{b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})" for b in s["busts"]
-            ]
-            parts.append("ALL BUSTS (cumulative): " + "; ".join(bust_strs))
-        if s["survivors"]:
-            survivor_strs = [f"{sv['team']} (still alive through {sv['still_alive_through']})" for sv in s["survivors"]]
-            parts.append("ALL SURVIVORS (cumulative): " + "; ".join(survivor_strs))
-        if not s["busts"] and not s["survivors"]:
-            parts.append("No bracket activity yet")
-        lines.append(" | ".join(parts))
+    lines = _format_submitter_lines(submitters)
+    _log_digest_data(submitters)
+    context = _determine_digest_context(submitters)
 
-    for s in submitters:
-        today_b = len(s.get("today_busts", []))
-        today_s = len(s.get("today_survivors", []))
-        print(
-            f"Digest data: {s['name']} — busts={len(s['busts'])} (today={today_b}) "
-            f"survivors={len(s['survivors'])} (today={today_s})"
-        )
-        for b in s["busts"]:
-            print(f"  BUST: {b}")
-        for sv in s["survivors"]:
-            print(f"  SURV: {sv}")
-
-    print(f"[digest-llm] Submitters: {len(submitters)}")
-    for s in submitters:
-        print(f"[digest-llm]   {s['name']}: {len(s['busts'])} busts, {len(s['survivors'])} survivors")
-
-    today_quiet = all(not s.get("today_busts") and not s.get("today_survivors") for s in submitters)
-    has_history = any(s["busts"] or s["survivors"] for s in submitters)
-    if today_quiet and not has_history:
-        context = "No games have been played yet — brackets are untouched."
-    elif today_quiet and has_history:
-        context = (
-            "Today's games haven't finished yet (or there are none today), but the tournament "
-            "has already done some damage. Here's where everyone's bracket stands so far."
-        )
-    else:
-        context = (
-            "Here's how everyone's bracket is looking. Focus the narrative on TODAY'S new busts "
-            "and survivors, but use the cumulative status for overall context."
-        )
     content = (
         f"{context} Bracket status:\n\n" + "\n".join(lines) + "\n\nWrite a Demery-style daily bracket update. "
         "Write it like a real person in a Discord channel — no headers, no bold, no bullets. "
@@ -308,3 +214,120 @@ async def generate_digest(submitters: list[dict]) -> str:
     )
     print(f"[digest-llm] Response ({len(response.content[0].text)} chars): {response.content[0].text[:200]}")
     return response.content[0].text
+
+
+# --- helpers ---
+
+
+def _extract_json_from_text(raw: str) -> str:
+    """
+    Extract a JSON object string from raw LLM output.
+    Handles markdown fences and searches for JSON boundaries.
+    Raises ValueError if no JSON object is found.
+    """
+    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+    if fence_match:
+        return fence_match.group(1).strip()
+
+    if raw.startswith("{"):
+        return raw
+
+    start = raw.find("{")
+    if start != -1:
+        candidate = raw[start:]
+        for end in range(len(candidate), 0, -1):
+            if candidate[end - 1] == "}":
+                try:
+                    json.loads(candidate[:end])
+                    return candidate[:end]
+                except json.JSONDecodeError:
+                    continue
+
+    raise ValueError(f"No JSON object found in text: {raw[:200]}")
+
+
+def _extract_and_validate_picks(raw: str) -> dict:
+    """
+    Extract and validate bracket picks JSON from raw LLM response text.
+    Raises ValueError on parse failure, error responses, or missing rounds.
+    """
+    json_str = _extract_json_from_text(raw)
+
+    try:
+        picks = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Could not parse bracket JSON: {e}") from e
+
+    if "error" in picks:
+        raise ValueError(f"Claude could not read bracket: {picks['error']}")
+
+    missing = REQUIRED_PICKS_KEYS - picks.keys()
+    if missing:
+        raise ValueError(f"Bracket picks missing rounds: {missing}")
+
+    return picks
+
+
+def _format_submitter_lines(submitters: list[dict]) -> list[str]:
+    """Build pipe-delimited status lines for each submitter."""
+    lines = []
+    for s in submitters:
+        parts = [s["mention"]]
+        today_busts = s.get("today_busts", [])
+        today_survivors = s.get("today_survivors", [])
+        if today_busts:
+            bust_strs = [
+                f"{b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})" for b in today_busts
+            ]
+            parts.append("TODAY'S BUSTS: " + "; ".join(bust_strs))
+        if today_survivors:
+            surv_strs = [f"{sv['team']} (still alive through {sv['still_alive_through']})" for sv in today_survivors]
+            parts.append("TODAY'S SURVIVORS: " + "; ".join(surv_strs))
+        if s["busts"]:
+            bust_strs = [
+                f"{b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})" for b in s["busts"]
+            ]
+            parts.append("ALL BUSTS (cumulative): " + "; ".join(bust_strs))
+        if s["survivors"]:
+            survivor_strs = [f"{sv['team']} (still alive through {sv['still_alive_through']})" for sv in s["survivors"]]
+            parts.append("ALL SURVIVORS (cumulative): " + "; ".join(survivor_strs))
+        if not s["busts"] and not s["survivors"]:
+            parts.append("No bracket activity yet")
+        lines.append(" | ".join(parts))
+    return lines
+
+
+def _determine_digest_context(submitters: list[dict]) -> str:
+    """Return the context sentence for the digest based on today's activity."""
+    today_quiet = all(not s.get("today_busts") and not s.get("today_survivors") for s in submitters)
+    has_history = any(s["busts"] or s["survivors"] for s in submitters)
+    if today_quiet and not has_history:
+        return "No games have been played yet — brackets are untouched."
+    if today_quiet and has_history:
+        return (
+            "Today's games haven't finished yet (or there are none today), but the tournament "
+            "has already done some damage. Here's where everyone's bracket stands so far."
+        )
+    return (
+        "Here's how everyone's bracket is looking. Focus the narrative on TODAY'S new busts "
+        "and survivors, but use the cumulative status for overall context."
+    )
+
+
+def _log_digest_data(submitters: list[dict]) -> None:
+    """Print debug info about digest submitters."""
+    for s in submitters:
+        today_b = len(s.get("today_busts", []))
+        today_s = len(s.get("today_survivors", []))
+        print(
+            f"Digest data: {s['name']} — busts={len(s['busts'])} (today={today_b}) "
+            f"survivors={len(s['survivors'])} (today={today_s})"
+        )
+        for b in s["busts"]:
+            print(f"  BUST: {b}")
+        for sv in s["survivors"]:
+            print(f"  SURV: {sv}")
+
+    print(f"[digest-llm] Submitters: {len(submitters)}")
+    for s in submitters:
+        print(f"[digest-llm]   {s['name']}: {len(s['busts'])} busts, {len(s['survivors'])} survivors")

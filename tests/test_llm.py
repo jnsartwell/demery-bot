@@ -49,8 +49,8 @@ class TestSystemPrompt:
 
 class TestPromptCaching:
     @pytest.mark.asyncio
-    async def test_generate_taunt_uses_cache_control(self, mock_anthropic):
-        await llm.generate_taunt("Alice", "medium")
+    async def test_generate_diss_uses_cache_control(self, mock_anthropic):
+        await llm.generate_diss("Alice", "medium")
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         system = call_kwargs["system"]
         assert system[0]["cache_control"] == {"type": "ephemeral"}
@@ -72,20 +72,20 @@ class TestPromptCaching:
 
 
 # ---------------------------------------------------------------------------
-# generate_taunt
+# generate_diss
 # ---------------------------------------------------------------------------
 
 
-class TestGenerateTaunt:
+class TestGeneratediss:
     @pytest.mark.asyncio
     async def test_passes_system_prompt(self, mock_anthropic):
-        await llm.generate_taunt("Alice", "medium")
+        await llm.generate_diss("Alice", "medium")
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         assert call_kwargs["system"][0]["text"] == llm.SYSTEM_PROMPT
 
     @pytest.mark.asyncio
     async def test_includes_target_name(self, mock_anthropic):
-        await llm.generate_taunt("Alice", "harsh")
+        await llm.generate_diss("Alice", "harsh")
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Alice" in user_content
@@ -93,7 +93,7 @@ class TestGenerateTaunt:
 
     @pytest.mark.asyncio
     async def test_includes_bracket_data(self, mock_anthropic, sample_picks):
-        await llm.generate_taunt("Alice", "medium", bracket_data=sample_picks)
+        await llm.generate_diss("Alice", "medium", bracket_data=sample_picks)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Duke Blue Devils" in user_content
@@ -105,7 +105,7 @@ class TestGenerateTaunt:
             "busts": [{"team": "Kentucky Wildcats", "picked_to_reach": "elite_eight", "lost_in": "1st Round"}],
             "survivors": [],
         }
-        await llm.generate_taunt("Alice", "medium", bracket_data=sample_picks, results=results)
+        await llm.generate_diss("Alice", "medium", bracket_data=sample_picks, results=results)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Kentucky Wildcats" in user_content
@@ -117,21 +117,21 @@ class TestGenerateTaunt:
             "busts": [],
             "survivors": [{"team": "Duke Blue Devils", "still_alive_through": "1st Round"}],
         }
-        await llm.generate_taunt("Alice", "medium", bracket_data=sample_picks, results=results)
+        await llm.generate_diss("Alice", "medium", bracket_data=sample_picks, results=results)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Survivors still alive" in user_content
 
     @pytest.mark.asyncio
     async def test_no_bracket_no_picks_in_prompt(self, mock_anthropic):
-        await llm.generate_taunt("Alice", "medium")
+        await llm.generate_diss("Alice", "medium")
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Champion" not in user_content
 
     @pytest.mark.asyncio
     async def test_returns_response_text(self, mock_anthropic):
-        result = await llm.generate_taunt("Alice", "medium")
+        result = await llm.generate_diss("Alice", "medium")
         assert result == "Demery says something witty"
 
 
@@ -322,7 +322,7 @@ class TestParseBracketImage:
 
         with aioresponses() as m:
             m.get("https://cdn.discord.com/image.png", body=b"\x89PNG")
-            with pytest.raises(ValueError, match="Could not parse"):
+            with pytest.raises(ValueError, match="No JSON object found"):
                 await llm.parse_bracket_image("https://cdn.discord.com/image.png")
 
 
@@ -443,5 +443,5 @@ class TestExtractAndValidatePicks:
             llm._extract_and_validate_picks('{"round_of_32": ["A"], "champion": "A"}')
 
     def test_unparseable_raises(self):
-        with pytest.raises(ValueError, match="Could not parse"):
+        with pytest.raises(ValueError, match="No JSON object found"):
             llm._extract_and_validate_picks("This is not JSON at all")

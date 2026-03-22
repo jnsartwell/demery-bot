@@ -80,7 +80,7 @@ A separate **CI** workflow (`ci.yml`) runs on every push to `main` and on pull r
 | `DISCORD_BOT_APPLICATION_ID` | Variable |
 | `DISCORD_GUILD_ID` | Variable (comma-separated for multiple servers) |
 | `DISCORD_BYPASS_USER_IDS` | Variable (comma-separated; exempt from cooldown + can use `/testdigest`) |
-| `TAUNT_HOUR` | Variable (UTC hour 0–23 to post digest; default `21`) |
+| `diss_HOUR` | Variable (UTC hour 0–23 to post digest; default `21`) |
 
 ### First-Time Fly.io Setup
 

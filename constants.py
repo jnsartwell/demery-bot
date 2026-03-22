@@ -40,13 +40,6 @@ TOURNAMENT_GAME_DATES = {
     "20260406",  # Championship
 }
 
-PICKS_ROUND_KEYS = ["round_of_32", "sweet_16", "elite_eight", "final_four", "championship_game"]
+PICKS_ROUND_KEYS = [k for k in ROUND_TIER_ORDER if k != "champion"]
 
-REQUIRED_PICKS_KEYS = {
-    "round_of_32",
-    "sweet_16",
-    "elite_eight",
-    "final_four",
-    "championship_game",
-    "champion",
-}
+REQUIRED_PICKS_KEYS = set(ROUND_TIER_ORDER)

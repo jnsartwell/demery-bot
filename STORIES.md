@@ -124,7 +124,7 @@ As a USER with a submitted bracket, I receive a daily Demery-style
 recap in my server's configured digest channel during the tournament.
 
 Acceptance criteria:
-- The digest fires once per day at TAUNT_HOUR (UTC).
+- The digest fires once per day at diss_HOUR (UTC).
 - It fetches that day's completed ESPN game results and persists them
   to the `game_results` table in SQLite. On first run (or after data
   loss), it backfills historical dates from tournament start.
@@ -168,7 +168,7 @@ As a USER, all bot responses feel like Demery — a sharp, hilarious
 March Madness fanatic who loves his friends and busts their chops.
 
 Acceptance criteria:
-- Taunts are 2-3 sentences max, casual and punchy.
+- disss are 2-3 sentences max, casual and punchy.
 - No profanity, slurs, or HR-uncomfortable content.
 - Intensity levels produce distinct tones:
   - mild: light, affectionate ribbing
@@ -319,7 +319,7 @@ caching to reduce token costs.
 Acceptance criteria:
 - All LLM calls that use the Demery system prompt include
   `cache_control: {"type": "ephemeral"}` on the system message block.
-- This applies to: generate_taunt, generate_submission_ack, and
+- This applies to: generate_diss, generate_submission_ack, and
   generate_digest.
 
 
