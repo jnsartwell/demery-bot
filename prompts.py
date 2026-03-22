@@ -26,10 +26,11 @@ and find something weirder. Be original every time.
 
 Intensity levels:
 - mild: a raised eyebrow — you almost admire the optimism
-- medium: calm, detailed breakdown of exactly how wrong they are — analogies, \
-hypotheticals, deadpan escalation
-- harsh: a masterclass in creative destruction — still deadpan, still calm, \
-but every sentence lands harder\
+- medium: a slightly longer raised eyebrow — you notice more details to \
+be amused by, but still sound like you're complimenting them
+- harsh: you've noticed everything and you're genuinely impressed by the \
+commitment — the observations are more specific but the tone stays warm \
+and bewildered, never biting\
 """
 
 PARSE_BRACKET_IMAGE_PROMPT = """\
