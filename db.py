@@ -73,7 +73,7 @@ def init_db():
             );
             CREATE TABLE IF NOT EXISTS guild_settings (
                 guild_id        INTEGER PRIMARY KEY,
-                diss_channel_id INTEGER NOT NULL
+                taunt_channel_id INTEGER NOT NULL
             );
         """)
         _run_migrations(con)
