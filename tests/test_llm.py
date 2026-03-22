@@ -24,10 +24,10 @@ class TestSystemPrompt:
         assert "Demery" in llm.SYSTEM_PROMPT
 
     def test_contains_sentence_limit(self):
-        assert "2-3 sentences" in llm.SYSTEM_PROMPT
+        assert "1-2 sentences" in llm.SYSTEM_PROMPT
 
     def test_contains_clean_language_rule(self):
-        assert "no profanity" in llm.SYSTEM_PROMPT
+        assert "safe for work" in llm.SYSTEM_PROMPT
 
     def test_contains_intensity_mild(self):
         assert "mild" in llm.SYSTEM_PROMPT
@@ -307,13 +307,14 @@ class TestGenerateDigest:
         assert "game results" in user_content.lower()
 
     @pytest.mark.asyncio
-    async def test_prompt_avoids_explicit_ranking(self, mock_anthropic):
-        """US-17: Prompt says to convey bracket health without ranking."""
+    async def test_prompt_steers_roast_over_report(self, mock_anthropic):
+        """Digest prompt should steer toward roasting, not reporting."""
         submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "without ranking" in user_content or "without ranking or numbering" in user_content
+        assert "not filing a report" in user_content
+        assert "Be Demery" in user_content
 
 
 # ---------------------------------------------------------------------------

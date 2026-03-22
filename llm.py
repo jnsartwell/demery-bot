@@ -39,9 +39,14 @@ async def generate_diss(
             content += f"\nAlive: {_fmt_survs(results['survivors'])}"
     if round_progress:
         content += f"\n{_fmt_round_progress(round_progress)}"
+    if bracket_data or results:
+        content += (
+            "\nMake the roast specific to their actual picks."
+            " The bigger the gap between expectation and reality, the funnier it is."
+        )
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=200,
+        max_tokens=150,
         system=[
             {
                 "type": "text",
@@ -200,20 +205,26 @@ async def generate_digest(
         content += f"\n\n{_fmt_round_progress(round_progress)}"
 
     content += (
-        "\n\nDaily bracket update. Plain text, no markdown. Varied openers. "
-        "CRITICAL: each person's Discord tag (e.g. <@123456>) must appear EXACTLY ONCE in your entire response. "
-        "Never repeat a tag. Never type out a person's name — the tag is the only way to refer to them. "
-        "NEW BUSTS = headline — roast the pick-vs-exit gap. "
-        "ALL BUSTS = background. ALL ALIVE = grudging credit. No activity = backhanded. "
-        "When multiple people share the same bust, roast them together — they chose this path as a group. "
-        "Weave in actual game results (scores, upsets) naturally — don't list scores, just reference them. "
-        "Give a sense of who's in rough shape vs. coasting without ranking or numbering them. "
-        "1-2 sentences per person, plus shared-bust callouts. Mild intensity."
+        "\n\nWrite a Demery-style daily bracket update — you're roasting friends "
+        "in a Discord channel, not filing a report. "
+        "Plain text, no markdown. Varied openers. "
+        "CRITICAL: each person's Discord tag (e.g. <@123456>) must appear "
+        "EXACTLY ONCE. Never repeat a tag. Never type out names. "
+        "Today's busts are the headline — roast the gap between where they "
+        "picked a team to go and where they actually got bounced. "
+        "Older busts are background damage, not the main event. "
+        "Survivors get grudging credit. No-activity people get backhanded acknowledgement. "
+        "When multiple people share the same bust, roast them together — "
+        "they chose this path as a group. "
+        "Weave in game results naturally — don't list scores, "
+        "use them to twist the knife. "
+        "1-2 punchy sentences per person, plus shared-bust callouts. "
+        "Mild intensity. Be funny. Be specific. Be Demery."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=400,
+        max_tokens=300,
         system=[
             {
                 "type": "text",
