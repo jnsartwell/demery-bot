@@ -14,6 +14,9 @@ from prompts import (
 
 client = anthropic.AsyncAnthropic()
 
+HUMOR_MODEL = "claude-opus-4-6"
+OCR_MODEL = "claude-sonnet-4-6"
+
 
 async def generate_diss(
     target_mention: str,
@@ -41,11 +44,13 @@ async def generate_diss(
         content += f"\n{_fmt_round_progress(round_progress)}"
     if bracket_data or results:
         content += (
-            "\nMake the roast specific to their actual picks."
-            " The bigger the gap between expectation and reality, the funnier it is."
+            "\nMake the roast specific to their actual picks — the gap between"
+            " where they thought a team would go and where it actually went is the joke."
+            " Find the most absurd specific detail and build the entire punchline around it."
+            " If there's no punchline, rewrite. Never cite scores."
         )
     response = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=HUMOR_MODEL,
         max_tokens=150,
         system=[
             {
@@ -63,10 +68,13 @@ async def generate_submission_ack(mention: str, picks: dict) -> str:
     champion = picks.get("champion", "somebody")
     content = (
         f"{mention} just submitted their bracket — they picked {champion} to win it all. "
-        "Give a one-line playful Demery reaction at mild intensity, like you just got handed ammo to use later."
+        "One-liner. Mild intensity. You just got handed ammo and you know it. "
+        "Make it funny — a real zinger, not just an acknowledgement. "
+        "Find the specific angle on this champion pick that's either delusional, inspired, or both. "
+        "Stick the landing."
     )
     response = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=HUMOR_MODEL,
         max_tokens=80,
         system=[
             {
@@ -96,7 +104,7 @@ async def parse_bracket_image(image_url: str) -> dict:
     image_b64 = base64.standard_b64encode(image_bytes).decode()
 
     response = await client.messages.create(
-        model="claude-sonnet-4-6",
+        model=OCR_MODEL,
         max_tokens=1000,
         messages=[
             {
@@ -207,24 +215,26 @@ async def generate_digest(
     content += (
         "\n\nWrite a Demery-style daily bracket update — you're roasting friends "
         "in a Discord channel, not filing a report. "
-        "Plain text, no markdown. Varied openers. "
+        "Plain text, no markdown. Varied openers — never start the same way twice. "
         "CRITICAL: each person's Discord tag (e.g. <@123456>) must appear "
         "EXACTLY ONCE. Never repeat a tag. Never type out names. "
-        "Today's busts are the headline — roast the gap between where they "
-        "picked a team to go and where they actually got bounced. "
+        "Today's busts are the headline. For each bust, find the specific absurd detail — "
+        "how far they picked that team to go vs. where they actually got bounced — "
+        "and build a real punchline around it. Not an observation. A joke. "
         "Older busts are background damage, not the main event. "
-        "Survivors get grudging credit. No-activity people get backhanded acknowledgement. "
-        "When multiple people share the same bust, roast them together — "
-        "they chose this path as a group. "
-        "Weave in game results naturally — don't list scores, "
-        "use them to twist the knife. "
-        "1-2 punchy sentences per person, plus shared-bust callouts. "
-        "Mild intensity. Be funny. Be specific. Be Demery."
+        "Survivors get grudging credit, delivered like you're disappointed they're still alive. "
+        "No-activity people get a backhanded acknowledgement — the silence is part of the roast. "
+        "When multiple people share the same bust, roast them as a group — "
+        "they walked into this together. "
+        "Never cite actual scores or point totals. Use the outcome and the drama, not the numbers. "
+        "1-2 punchy sentences per person, plus shared-bust callouts. Every sentence should land. "
+        "Mild intensity. Wit over volume. Zingers, not lectures. Be Demery. "
+        "IMPORTANT: Your entire response must be under 2000 characters to fit in a single Discord message."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=300,
+        model=HUMOR_MODEL,
+        max_tokens=500,
         system=[
             {
                 "type": "text",

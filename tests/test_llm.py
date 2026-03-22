@@ -23,8 +23,8 @@ class TestSystemPrompt:
     def test_contains_character_name(self):
         assert "Demery" in llm.SYSTEM_PROMPT
 
-    def test_contains_sentence_limit(self):
-        assert "1-2 sentences" in llm.SYSTEM_PROMPT
+    def test_contains_punchline_requirement(self):
+        assert "punchline" in llm.SYSTEM_PROMPT
 
     def test_contains_clean_language_rule(self):
         assert "safe for work" in llm.SYSTEM_PROMPT
@@ -299,12 +299,12 @@ class TestGenerateDigest:
 
     @pytest.mark.asyncio
     async def test_prompt_steers_toward_game_context(self, mock_anthropic):
-        """US-18: Prompt instructs LLM to weave in game results."""
+        """US-18: Prompt instructs LLM to use outcome context, not scores."""
         submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "game results" in user_content.lower()
+        assert "outcome" in user_content.lower()
 
     @pytest.mark.asyncio
     async def test_prompt_steers_roast_over_report(self, mock_anthropic):
