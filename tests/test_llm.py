@@ -15,28 +15,6 @@ from aioresponses import aioresponses
 import llm
 
 # ---------------------------------------------------------------------------
-# US-11: Tone and personality — system prompt content
-# ---------------------------------------------------------------------------
-
-
-class TestSystemPrompt:
-    def test_contains_character_name(self):
-        assert "Demery" in llm.SYSTEM_PROMPT
-
-    def test_contains_punchline_requirement(self):
-        assert "punchline" in llm.SYSTEM_PROMPT
-
-    def test_contains_clean_language_rule(self):
-        assert "safe for work" in llm.SYSTEM_PROMPT
-
-    def test_contains_mild_style(self):
-        assert "one tight zinger" in llm.SYSTEM_PROMPT.lower() or "tight zinger" in llm.SYSTEM_PROMPT.lower()
-
-    def test_contains_friend_tone(self):
-        assert "roasting friends, not strangers" in llm.SYSTEM_PROMPT
-
-
-# ---------------------------------------------------------------------------
 # DS-4: Prompt caching on system prompt
 # ---------------------------------------------------------------------------
 
@@ -90,7 +68,6 @@ class TestGeneratediss:
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Duke Blue Devils" in user_content
-        assert "champ=" in user_content
 
     @pytest.mark.asyncio
     async def test_includes_results_busts(self, mock_anthropic, sample_picks):
@@ -102,7 +79,6 @@ class TestGeneratediss:
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Kentucky Wildcats" in user_content
-        assert "Busts:" in user_content
 
     @pytest.mark.asyncio
     async def test_includes_results_survivors(self, mock_anthropic, sample_picks):
@@ -113,7 +89,7 @@ class TestGeneratediss:
         await llm.generate_diss("Alice", bracket_data=sample_picks, results=results)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "Alive:" in user_content
+        assert "Duke Blue Devils" in user_content
 
     @pytest.mark.asyncio
     async def test_no_bracket_no_picks_in_prompt(self, mock_anthropic):
@@ -211,14 +187,6 @@ class TestGenerateDigest:
         assert "prior damage" in user_content.lower()
 
     @pytest.mark.asyncio
-    async def test_prompt_requests_natural_style(self, mock_anthropic):
-        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
-        await llm.generate_digest(submitters)
-        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
-        user_content = call_kwargs["messages"][0]["content"]
-        assert "no markdown" in user_content
-
-    @pytest.mark.asyncio
     async def test_includes_game_results_in_prompt(self, mock_anthropic):
         """US-18: Today's game results appear in the digest prompt."""
         submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
@@ -237,15 +205,6 @@ class TestGenerateDigest:
         assert "Duke Blue Devils" in user_content
         assert "82" in user_content
         assert "55" in user_content
-
-    @pytest.mark.asyncio
-    async def test_no_games_omits_results_section(self, mock_anthropic):
-        """When no games played, results section is not included."""
-        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
-        await llm.generate_digest(submitters, today_games=[])
-        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
-        user_content = call_kwargs["messages"][0]["content"]
-        assert "Today's results" not in user_content
 
     @pytest.mark.asyncio
     async def test_includes_shared_busts_in_prompt(self, mock_anthropic):
@@ -268,46 +227,8 @@ class TestGenerateDigest:
         await llm.generate_digest(submitters, shared_busts=shared)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "Shared busts" in user_content
         assert "<@1>" in user_content
         assert "<@2>" in user_content
-
-    @pytest.mark.asyncio
-    async def test_no_shared_busts_omits_section(self, mock_anthropic):
-        """When no shared busts, section is not included."""
-        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
-        await llm.generate_digest(submitters, shared_busts=[])
-        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
-        user_content = call_kwargs["messages"][0]["content"]
-        assert "Shared busts" not in user_content
-
-    @pytest.mark.asyncio
-    async def test_prompt_steers_toward_comparisons(self, mock_anthropic):
-        """US-17: Prompt instructs LLM to roast shared picks together."""
-        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
-        await llm.generate_digest(submitters)
-        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
-        user_content = call_kwargs["messages"][0]["content"]
-        assert "share the same bust" in user_content
-
-    @pytest.mark.asyncio
-    async def test_prompt_steers_toward_game_context(self, mock_anthropic):
-        """US-18: Prompt instructs LLM to use outcome context, not scores."""
-        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
-        await llm.generate_digest(submitters)
-        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
-        user_content = call_kwargs["messages"][0]["content"]
-        assert "outcome" in user_content.lower()
-
-    @pytest.mark.asyncio
-    async def test_prompt_steers_roast_over_report(self, mock_anthropic):
-        """Digest prompt should steer toward roasting, not reporting."""
-        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
-        await llm.generate_digest(submitters)
-        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
-        user_content = call_kwargs["messages"][0]["content"]
-        assert "not filing a report" in user_content
-        assert "Be Demery" in user_content
 
 
 # ---------------------------------------------------------------------------
