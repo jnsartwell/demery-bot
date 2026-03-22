@@ -5,7 +5,7 @@ import re
 import aiohttp
 import anthropic
 
-from constants import PICKS_ROUND_KEYS, REQUIRED_PICKS_KEYS
+from constants import ALLOWED_IMAGE_TYPES, PICKS_ROUND_KEYS, REQUIRED_PICKS_KEYS, SUPPORTED_IMAGE_FORMATS_LABEL
 from prompts import (
     NORMALIZE_TEAM_NAMES_PROMPT,
     PARSE_BRACKET_IMAGE_PROMPT,
@@ -100,6 +100,11 @@ async def parse_bracket_image(image_url: str) -> dict:
             image_bytes = await resp.read()
             content_type = resp.content_type or "image/png"
 
+    # Strip parameters (e.g. "image/png; charset=utf-8" -> "image/png")
+    media_type = content_type.split(";")[0].strip()
+    if media_type not in ALLOWED_IMAGE_TYPES:
+        raise ValueError(f"Unsupported image format ({media_type}). Please use {SUPPORTED_IMAGE_FORMATS_LABEL}.")
+
     image_b64 = base64.standard_b64encode(image_bytes).decode()
 
     response = await client.messages.create(
@@ -113,7 +118,7 @@ async def parse_bracket_image(image_url: str) -> dict:
                         "type": "image",
                         "source": {
                             "type": "base64",
-                            "media_type": content_type,
+                            "media_type": media_type,
                             "data": image_b64,
                         },
                     },

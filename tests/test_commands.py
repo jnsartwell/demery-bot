@@ -181,6 +181,14 @@ class TestDissCooldown:
 # ---------------------------------------------------------------------------
 
 
+def _make_attachment(url="https://cdn.discord.com/image.png", content_type="image/png", filename="bracket.png"):
+    attachment = MagicMock()
+    attachment.url = url
+    attachment.content_type = content_type
+    attachment.filename = filename
+    return attachment
+
+
 class TestSubmitBracketCommand:
     def _valid_picks(self):
         return {
@@ -206,8 +214,7 @@ class TestSubmitBracketCommand:
         self._mock_submit_deps(monkeypatch, picks)
 
         interaction = make_interaction(user_id=bypass_user, guild_id=9001)
-        attachment = MagicMock()
-        attachment.url = "https://cdn.discord.com/image.png"
+        attachment = _make_attachment()
 
         await bot.submit_bracket.callback(interaction, image=attachment)
 
@@ -224,8 +231,7 @@ class TestSubmitBracketCommand:
         monkeypatch.setattr(espn, "fetch_tournament_team_names", AsyncMock(return_value=[]))
 
         interaction = make_interaction(user_id=bypass_user)
-        attachment = MagicMock()
-        attachment.url = "https://cdn.discord.com/image.png"
+        attachment = _make_attachment()
 
         await bot.submit_bracket.callback(interaction, image=attachment)
 
@@ -242,8 +248,7 @@ class TestSubmitBracketCommand:
         monkeypatch.setattr(espn, "fetch_tournament_team_names", AsyncMock(return_value=[]))
 
         interaction = make_interaction(user_id=bypass_user)
-        attachment = MagicMock()
-        attachment.url = "https://cdn.discord.com/image.png"
+        attachment = _make_attachment()
 
         await bot.submit_bracket.callback(interaction, image=attachment)
 
@@ -257,8 +262,7 @@ class TestSubmitBracketCommand:
         monkeypatch.setattr(bot, "parse_bracket_image", AsyncMock(side_effect=ValueError("Bad image")))
 
         interaction = make_interaction(user_id=bypass_user)
-        attachment = MagicMock()
-        attachment.url = "https://cdn.discord.com/image.png"
+        attachment = _make_attachment()
 
         await bot.submit_bracket.callback(interaction, image=attachment)
 
@@ -275,13 +279,60 @@ class TestSubmitBracketCommand:
         monkeypatch.setattr(bot, "generate_submission_ack", AsyncMock(return_value="Ok."))
 
         interaction = make_interaction(user_id=bypass_user, guild_id=9001)
-        attachment = MagicMock()
-        attachment.url = "https://cdn.discord.com/image.png"
+        attachment = _make_attachment()
 
         await bot.submit_bracket.callback(interaction, image=attachment)
 
         saved = db.get_bracket(bypass_user, 9001)
         assert saved is not None  # raw picks saved despite normalization failure
+
+    @pytest.mark.asyncio
+    async def test_rejects_unsupported_file_type(self, make_interaction, bypass_user, monkeypatch):
+        interaction = make_interaction(user_id=bypass_user)
+        attachment = _make_attachment(content_type="application/pdf", filename="bracket.pdf")
+
+        await bot.submit_bracket.callback(interaction, image=attachment)
+
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "PNG, JPG, GIF, or WebP" in msg
+        kwargs = interaction.response.send_message.call_args.kwargs
+        assert kwargs.get("ephemeral") is True
+
+    @pytest.mark.asyncio
+    async def test_accepts_jpeg_content_type(self, make_interaction, bypass_user, monkeypatch):
+        self._mock_submit_deps(monkeypatch)
+        interaction = make_interaction(user_id=bypass_user, guild_id=9001)
+        attachment = _make_attachment(content_type="image/jpeg", filename="bracket.jpg")
+
+        await bot.submit_bracket.callback(interaction, image=attachment)
+
+        saved = db.get_bracket(bypass_user, 9001)
+        assert saved is not None
+
+    @pytest.mark.asyncio
+    async def test_accepts_by_extension_fallback(self, make_interaction, bypass_user, monkeypatch):
+        self._mock_submit_deps(monkeypatch)
+        interaction = make_interaction(user_id=bypass_user, guild_id=9001)
+        # content_type is wrong/missing but extension is valid
+        attachment = _make_attachment(content_type="application/octet-stream", filename="bracket.png")
+
+        await bot.submit_bracket.callback(interaction, image=attachment)
+
+        saved = db.get_bracket(bypass_user, 9001)
+        assert saved is not None
+
+    @pytest.mark.asyncio
+    async def test_unexpected_error_shows_friendly_message(self, make_interaction, bypass_user, monkeypatch):
+        monkeypatch.setattr(bot, "parse_bracket_image", AsyncMock(side_effect=RuntimeError("API down")))
+
+        interaction = make_interaction(user_id=bypass_user)
+        attachment = _make_attachment()
+
+        await bot.submit_bracket.callback(interaction, image=attachment)
+
+        call = interaction.followup.send.call_args
+        assert "Something went wrong" in call[0][0]
+        assert call.kwargs.get("ephemeral") is True
 
 
 # ---------------------------------------------------------------------------
@@ -309,8 +360,7 @@ class TestSubmitRateLimit:
         monkeypatch.setattr(bot, "BYPASS_USER_IDS", set())
         self._setup_mocks(monkeypatch)
 
-        attachment = MagicMock()
-        attachment.url = "https://cdn.discord.com/image.png"
+        attachment = _make_attachment()
 
         for i in range(3):
             interaction = make_interaction(user_id=5001)
@@ -327,8 +377,7 @@ class TestSubmitRateLimit:
     async def test_bypass_user_no_limit(self, make_interaction, bypass_user, monkeypatch):
         self._setup_mocks(monkeypatch)
 
-        attachment = MagicMock()
-        attachment.url = "https://cdn.discord.com/image.png"
+        attachment = _make_attachment()
 
         for i in range(5):
             interaction = make_interaction(user_id=bypass_user)

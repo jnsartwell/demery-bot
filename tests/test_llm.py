@@ -261,7 +261,7 @@ class TestParseBracketImage:
         monkeypatch.setattr(llm, "client", mock_client)
 
         with aioresponses() as m:
-            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG fake image data")
+            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG fake image data", content_type="image/png")
             result = await llm.parse_bracket_image("https://cdn.discord.com/image.png")
 
         assert result["champion"] == "A"
@@ -275,7 +275,7 @@ class TestParseBracketImage:
         monkeypatch.setattr(llm, "client", mock_client)
 
         with aioresponses() as m:
-            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG")
+            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG", content_type="image/png")
             result = await llm.parse_bracket_image("https://cdn.discord.com/image.png")
 
         assert result["champion"] == "A"
@@ -288,7 +288,7 @@ class TestParseBracketImage:
         monkeypatch.setattr(llm, "client", mock_client)
 
         with aioresponses() as m:
-            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG")
+            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG", content_type="image/png")
             result = await llm.parse_bracket_image("https://cdn.discord.com/image.png")
 
         assert result["champion"] == "A"
@@ -301,7 +301,7 @@ class TestParseBracketImage:
         monkeypatch.setattr(llm, "client", mock_client)
 
         with aioresponses() as m:
-            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG")
+            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG", content_type="image/png")
             with pytest.raises(ValueError, match="Cannot read this bracket"):
                 await llm.parse_bracket_image("https://cdn.discord.com/image.png")
 
@@ -313,7 +313,7 @@ class TestParseBracketImage:
         monkeypatch.setattr(llm, "client", mock_client)
 
         with aioresponses() as m:
-            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG")
+            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG", content_type="image/png")
             with pytest.raises(ValueError, match="missing rounds"):
                 await llm.parse_bracket_image("https://cdn.discord.com/image.png")
 
@@ -326,9 +326,22 @@ class TestParseBracketImage:
         monkeypatch.setattr(llm, "client", mock_client)
 
         with aioresponses() as m:
-            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG")
+            m.get("https://cdn.discord.com/image.png", body=b"\x89PNG", content_type="image/png")
             with pytest.raises(ValueError, match="No JSON object found"):
                 await llm.parse_bracket_image("https://cdn.discord.com/image.png")
+
+    @pytest.mark.asyncio
+    async def test_unsupported_media_type_raises(self, monkeypatch):
+        mock_client = AsyncMock()
+        monkeypatch.setattr(llm, "client", mock_client)
+
+        with aioresponses() as m:
+            m.get("https://cdn.discord.com/file.bmp", body=b"BM", content_type="image/bmp")
+            with pytest.raises(ValueError, match="Unsupported image format"):
+                await llm.parse_bracket_image("https://cdn.discord.com/file.bmp")
+
+        # Claude API should never have been called
+        mock_client.messages.create.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

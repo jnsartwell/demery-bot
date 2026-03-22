@@ -52,3 +52,8 @@ EXPECTED_GAMES_PER_ROUND = {
 PICKS_ROUND_KEYS = [k for k in ROUND_TIER_ORDER if k != "champion"]
 
 REQUIRED_PICKS_KEYS = set(ROUND_TIER_ORDER)
+
+# Supported image formats for bracket submission (must match Claude Vision API)
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+SUPPORTED_IMAGE_FORMATS_LABEL = "PNG, JPG, GIF, or WebP"
