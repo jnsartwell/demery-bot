@@ -149,6 +149,50 @@ class TestRunDigest:
             submitters = mock_gen.call_args[0][0]
             assert submitters[0]["mention"] == "<@1001>"
 
+    @pytest.mark.asyncio
+    async def test_today_games_passed_to_digest(self, sample_picks, monkeypatch, mock_anthropic):
+        """US-18: Today's game results are passed to generate_digest."""
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
+        games = [
+            {
+                "winner": "Duke Blue Devils",
+                "loser": "Vermont Catamounts",
+                "round": "1st Round",
+                "winner_score": 82,
+                "loser_score": 55,
+            }
+        ]
+        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=games))
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
+            await bot._run_digest(broadcast=False, guild_id=9001)
+            today_games_arg = mock_gen.call_args[0][1]
+            assert len(today_games_arg) == 1
+            assert today_games_arg[0]["winner"] == "Duke Blue Devils"
+            assert today_games_arg[0]["winner_score"] == 82
+
+    @pytest.mark.asyncio
+    async def test_shared_busts_passed_to_digest(self, sample_picks, monkeypatch, mock_anthropic):
+        """US-17: Shared bust data is passed to generate_digest."""
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
+        db.upsert_bracket(2001, 9001, "Bob", sample_picks)
+        games = [{"winner": "Saint Peter's Peacocks", "loser": "Kentucky Wildcats", "round": "1st Round"}]
+        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=games))
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
+            await bot._run_digest(broadcast=False, guild_id=9001)
+            shared_arg = mock_gen.call_args[0][2]
+            # Both users have identical picks, so all busts are shared
+            assert len(shared_arg) >= 1
+            kentucky_shared = [s for s in shared_arg if s["team"] == "Kentucky Wildcats"]
+            assert len(kentucky_shared) == 1
+            assert "<@1001>" in kentucky_shared[0]["mentions"]
+            assert "<@2001>" in kentucky_shared[0]["mentions"]
+
 
 # ---------------------------------------------------------------------------
 # US-9: Cumulative tournament results in digest

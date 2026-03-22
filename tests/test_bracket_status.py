@@ -1,10 +1,11 @@
 """
-Tests for _compute_bracket_status — covers:
+Tests for _compute_bracket_status and _compute_shared_busts — covers:
   DS-8: Round-to-tier mapping
   DS-9: Bust and survivor computation
+  US-17: Cross-bracket shared busts
 """
 
-from bot import _compute_bracket_status
+from bot import _compute_bracket_status, _compute_shared_busts
 from constants import ROUND_NAME_TO_TIER, ROUND_TIER_ORDER
 
 # ---------------------------------------------------------------------------
@@ -167,3 +168,44 @@ class TestComputeBracketStatus:
         assert len(result["busts"]) == 1
         assert result["busts"][0]["pick"] == "elite_eight"
         assert result["busts"][0]["lost"] == "2nd Round"
+
+
+# ---------------------------------------------------------------------------
+# US-17: _compute_shared_busts
+# ---------------------------------------------------------------------------
+
+
+class TestComputeSharedBusts:
+    def test_shared_bust_found(self):
+        submitters = [
+            {"mention": "<@1>", "busts": [{"team": "Kentucky Wildcats", "pick": "sweet_16", "lost": "1st Round"}]},
+            {"mention": "<@2>", "busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round"}]},
+        ]
+        shared = _compute_shared_busts(submitters)
+        assert len(shared) == 1
+        assert shared[0]["team"] == "Kentucky Wildcats"
+        assert "<@1>" in shared[0]["mentions"]
+        assert "<@2>" in shared[0]["mentions"]
+
+    def test_no_shared_busts(self):
+        submitters = [
+            {"mention": "<@1>", "busts": [{"team": "Duke Blue Devils", "pick": "sweet_16", "lost": "1st Round"}]},
+            {"mention": "<@2>", "busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round"}]},
+        ]
+        shared = _compute_shared_busts(submitters)
+        assert shared == []
+
+    def test_empty_busts(self):
+        submitters = [
+            {"mention": "<@1>", "busts": []},
+            {"mention": "<@2>", "busts": []},
+        ]
+        shared = _compute_shared_busts(submitters)
+        assert shared == []
+
+    def test_single_submitter_no_shared(self):
+        submitters = [
+            {"mention": "<@1>", "busts": [{"team": "Duke Blue Devils", "pick": "champion", "lost": "1st Round"}]},
+        ]
+        shared = _compute_shared_busts(submitters)
+        assert shared == []

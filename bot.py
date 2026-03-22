@@ -349,7 +349,8 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
             continue
 
         print(f"[digest] Guild {guild_channel['guild_id']}: sending to LLM with {len(submitters)} submitters")
-        message = await generate_digest(submitters)
+        shared = _compute_shared_busts(submitters)
+        message = await generate_digest(submitters, today_games, shared)
         if broadcast:
             channel = client.get_channel(guild_channel["channel_id"])
             if channel:
@@ -492,6 +493,15 @@ def _find_farthest_picked_round(team: str, picks: dict) -> str | None:
         if team in _get_picks_for_tier(picks, tier):
             return tier
     return None
+
+
+def _compute_shared_busts(submitters: list[dict]) -> list[dict]:
+    """Find teams that busted for multiple submitters. Returns [{team, mentions: [mention, ...]}]."""
+    team_to_mentions = {}
+    for s in submitters:
+        for b in s["busts"]:
+            team_to_mentions.setdefault(b["team"], []).append(s["mention"])
+    return [{"team": team, "mentions": mentions} for team, mentions in team_to_mentions.items() if len(mentions) > 1]
 
 
 if __name__ == "__main__":

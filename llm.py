@@ -166,28 +166,45 @@ async def normalize_team_names(picks: dict, espn_names: list[str]) -> dict:
     return normalized
 
 
-async def generate_digest(submitters: list[dict]) -> str:
+async def generate_digest(
+    submitters: list[dict],
+    today_games: list[dict] | None = None,
+    shared_busts: list[dict] | None = None,
+) -> str:
     """
     submitters: [{mention, name, busts: [{team, pick, lost}],
                   survivors: [{team, thru}]}]
+    today_games: [{winner, loser, round, winner_score, loser_score}]
+    shared_busts: [{team, mentions: [mention, ...]}]
     Returns a single message roasting/praising everyone.
     """
     lines = _format_submitter_lines(submitters)
     _log_digest_data(submitters)
     context = _determine_digest_context(submitters)
 
-    content = (
-        f"{context} Bracket status:\n\n"
-        + "\n".join(lines)
-        + "\n\nDaily bracket update. Plain text, no markdown. Varied openers. "
+    content = f"{context} Bracket status:\n\n" + "\n".join(lines)
+
+    if today_games:
+        content += "\n\nToday's results: " + _fmt_games(today_games)
+
+    if shared_busts:
+        content += "\n\nShared busts (multiple people picked these losers): " + "; ".join(
+            f"{sb['team']} ({', '.join(sb['mentions'])})" for sb in shared_busts
+        )
+
+    content += (
+        "\n\nDaily bracket update. Plain text, no markdown. Varied openers. "
         "Use exact Discord tags. NEW BUSTS = headline — roast the pick-vs-exit gap. "
         "ALL BUSTS = background. ALL ALIVE = grudging credit. No activity = backhanded. "
-        "1-2 sentences per person. Everyone mentioned. Medium intensity."
+        "When multiple people share the same bust, roast them together — they chose this path as a group. "
+        "Weave in actual game results (scores, upsets) naturally — don't list scores, just reference them. "
+        "Give a sense of who's in rough shape vs. coasting without ranking or numbering them. "
+        "1-2 sentences per person, plus shared-bust callouts. Everyone mentioned. Medium intensity."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=400,
+        max_tokens=500,
         system=[
             {
                 "type": "text",
@@ -212,6 +229,14 @@ def _fmt_busts(busts: list[dict]) -> str:
 def _fmt_survs(survs: list[dict]) -> str:
     """Format survivor list as compact semicolon-delimited string."""
     return "; ".join(f"{s['team']} (thru={s['thru']})" for s in survs)
+
+
+def _fmt_games(games: list[dict]) -> str:
+    """Format game results as compact semicolon-delimited string with scores."""
+    parts = []
+    for g in games:
+        parts.append(f"{g['winner']} {g.get('winner_score', '?')}-{g.get('loser_score', '?')} {g['loser']}")
+    return "; ".join(parts)
 
 
 def _extract_json_from_text(raw: str) -> str:

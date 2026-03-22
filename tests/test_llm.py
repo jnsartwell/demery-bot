@@ -225,6 +225,96 @@ class TestGenerateDigest:
         user_content = call_kwargs["messages"][0]["content"]
         assert "no markdown" in user_content
 
+    @pytest.mark.asyncio
+    async def test_includes_game_results_in_prompt(self, mock_anthropic):
+        """US-18: Today's game results appear in the digest prompt."""
+        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
+        today_games = [
+            {
+                "winner": "Duke Blue Devils",
+                "loser": "Vermont Catamounts",
+                "round": "1st Round",
+                "winner_score": 82,
+                "loser_score": 55,
+            },
+        ]
+        await llm.generate_digest(submitters, today_games=today_games)
+        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
+        user_content = call_kwargs["messages"][0]["content"]
+        assert "Duke Blue Devils" in user_content
+        assert "82" in user_content
+        assert "55" in user_content
+
+    @pytest.mark.asyncio
+    async def test_no_games_omits_results_section(self, mock_anthropic):
+        """When no games played, results section is not included."""
+        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
+        await llm.generate_digest(submitters, today_games=[])
+        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
+        user_content = call_kwargs["messages"][0]["content"]
+        assert "Today's results" not in user_content
+
+    @pytest.mark.asyncio
+    async def test_includes_shared_busts_in_prompt(self, mock_anthropic):
+        """US-17: Shared bust data appears in the digest prompt."""
+        submitters = [
+            {
+                "mention": "<@1>",
+                "name": "A",
+                "busts": [{"team": "X", "pick": "sweet_16", "lost": "1st Round"}],
+                "survivors": [],
+            },
+            {
+                "mention": "<@2>",
+                "name": "B",
+                "busts": [{"team": "X", "pick": "elite_eight", "lost": "1st Round"}],
+                "survivors": [],
+            },
+        ]
+        shared = [{"team": "X", "mentions": ["<@1>", "<@2>"]}]
+        await llm.generate_digest(submitters, shared_busts=shared)
+        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
+        user_content = call_kwargs["messages"][0]["content"]
+        assert "Shared busts" in user_content
+        assert "<@1>" in user_content
+        assert "<@2>" in user_content
+
+    @pytest.mark.asyncio
+    async def test_no_shared_busts_omits_section(self, mock_anthropic):
+        """When no shared busts, section is not included."""
+        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
+        await llm.generate_digest(submitters, shared_busts=[])
+        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
+        user_content = call_kwargs["messages"][0]["content"]
+        assert "Shared busts" not in user_content
+
+    @pytest.mark.asyncio
+    async def test_prompt_steers_toward_comparisons(self, mock_anthropic):
+        """US-17: Prompt instructs LLM to roast shared picks together."""
+        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
+        await llm.generate_digest(submitters)
+        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
+        user_content = call_kwargs["messages"][0]["content"]
+        assert "share the same bust" in user_content
+
+    @pytest.mark.asyncio
+    async def test_prompt_steers_toward_game_context(self, mock_anthropic):
+        """US-18: Prompt instructs LLM to weave in game results."""
+        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
+        await llm.generate_digest(submitters)
+        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
+        user_content = call_kwargs["messages"][0]["content"]
+        assert "game results" in user_content.lower()
+
+    @pytest.mark.asyncio
+    async def test_prompt_avoids_explicit_ranking(self, mock_anthropic):
+        """US-17: Prompt says to convey bracket health without ranking."""
+        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
+        await llm.generate_digest(submitters)
+        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
+        user_content = call_kwargs["messages"][0]["content"]
+        assert "without ranking" in user_content or "without ranking or numbering" in user_content
+
 
 # ---------------------------------------------------------------------------
 # DS-5: Bracket image parsing robustness

@@ -20,7 +20,7 @@ ESPN_URL_PATTERN = re.compile(r".*scoreboard.*")
 # ---------------------------------------------------------------------------
 
 
-def _espn_event(winner_name, loser_name, round_name="1st Round", completed=True):
+def _espn_event(winner_name, loser_name, round_name="1st Round", completed=True, winner_score=75, loser_score=60):
     """Build a minimal ESPN event dict."""
     return {
         "name": f"{winner_name} vs {loser_name}",
@@ -28,8 +28,8 @@ def _espn_event(winner_name, loser_name, round_name="1st Round", completed=True)
         "competitions": [
             {
                 "competitors": [
-                    {"winner": True, "team": {"displayName": winner_name}},
-                    {"winner": False, "team": {"displayName": loser_name}},
+                    {"winner": True, "team": {"displayName": winner_name}, "score": str(winner_score)},
+                    {"winner": False, "team": {"displayName": loser_name}, "score": str(loser_score)},
                 ],
                 "notes": [{"headline": f"NCAA Men's Basketball Championship - East Region - {round_name}"}],
                 "type": {"text": "tournament"},
@@ -77,6 +77,21 @@ class TestFetchTodayResults:
         assert results[0]["winner"] == "Duke Blue Devils"
         assert results[0]["loser"] == "Vermont Catamounts"
         assert results[0]["round"] == "1st Round"
+
+    @pytest.mark.asyncio
+    async def test_returns_scores(self):
+        with aioresponses() as m:
+            m.get(
+                ESPN_URL_PATTERN,
+                payload={
+                    "events": [
+                        _espn_event("Duke Blue Devils", "Vermont Catamounts", winner_score=82, loser_score=55),
+                    ]
+                },
+            )
+            results = await espn.fetch_today_results("20260319")
+        assert results[0]["winner_score"] == 82
+        assert results[0]["loser_score"] == 55
 
     @pytest.mark.asyncio
     async def test_skips_incomplete_games(self):

@@ -103,10 +103,15 @@ def _parse_game_result(event: dict) -> dict | None:
 
     round_name = _parse_round_name(competition)
 
+    winner_score = int(winner.get("score", 0))
+    loser_score = int(loser.get("score", 0))
+
     return {
         "winner": winner["team"]["displayName"],
         "loser": loser["team"]["displayName"],
         "round": round_name,
+        "winner_score": winner_score,
+        "loser_score": loser_score,
     }
 
 
