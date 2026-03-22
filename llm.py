@@ -24,30 +24,18 @@ async def generate_diss(
     content = f"Taunt {target_mention} at {intensity} intensity."
     if bracket_data:
         content += (
-            f"\n\nTheir actual bracket picks:"
-            f"\n- Champion: {bracket_data['champion']}"
-            f"\n- Championship game: {', '.join(bracket_data['championship_game'])}"
-            f"\n- Final Four: {', '.join(bracket_data['final_four'])}"
-            f"\n- Elite Eight: {', '.join(bracket_data['elite_eight'])}"
-            f"\n- Sweet 16: {', '.join(bracket_data['sweet_16'])}"
-            f"\n- Round of 32: {', '.join(bracket_data['round_of_32'])}"
-            f"\n\nMake the roast specific to their picks where it's funny."
+            f"\nPicks: champ={bracket_data['champion']}"
+            f" | final={', '.join(bracket_data['championship_game'])}"
+            f" | F4={', '.join(bracket_data['final_four'])}"
+            f" | E8={', '.join(bracket_data['elite_eight'])}"
+            f" | S16={', '.join(bracket_data['sweet_16'])}"
+            f" | R32={', '.join(bracket_data['round_of_32'])}"
         )
     if results:
         if results["busts"]:
-            bust_lines = [
-                f"- {b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})"
-                for b in results["busts"]
-            ]
-            content += "\n\nBusted bracket picks so far:\n" + "\n".join(bust_lines)
+            content += f"\nBusts: {_fmt_busts(results['busts'])}"
         if results["survivors"]:
-            surv_lines = [
-                f"- {s['team']} (still alive through {s['still_alive_through']})" for s in results["survivors"]
-            ]
-            content += "\n\nSurvivors still alive:\n" + "\n".join(surv_lines)
-        content += (
-            "\n\nUse the tournament results — the bigger the gap between expectation and reality, the funnier it is."
-        )
+            content += f"\nAlive: {_fmt_survs(results['survivors'])}"
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=200,
@@ -180,8 +168,8 @@ async def normalize_team_names(picks: dict, espn_names: list[str]) -> dict:
 
 async def generate_digest(submitters: list[dict]) -> str:
     """
-    submitters: [{mention, name, busts: [{team, picked_to_reach, lost_in}],
-                  survivors: [{team, still_alive_through}]}]
+    submitters: [{mention, name, busts: [{team, pick, lost}],
+                  survivors: [{team, thru}]}]
     Returns a single message roasting/praising everyone.
     """
     lines = _format_submitter_lines(submitters)
@@ -189,15 +177,12 @@ async def generate_digest(submitters: list[dict]) -> str:
     context = _determine_digest_context(submitters)
 
     content = (
-        f"{context} Bracket status:\n\n" + "\n".join(lines) + "\n\nWrite a Demery-style daily bracket update. "
-        "Write it like a real person in a Discord channel — no headers, no bold, no bullets. "
-        "Natural flowing text, varied openers. "
-        "Mention each person using their EXACT Discord tag (e.g. <@123456>) — copy verbatim. "
-        "Today's busts are the headline — roast the gap between where they picked a team to go "
-        "and where they actually got bounced. Older busts are background damage, not the main event. "
-        "Survivors get begrudging credit. No-activity people get a backhanded acknowledgement. "
-        "One or two punchy sentences per person. Everyone gets mentioned. "
-        "Use medium intensity. Be funny. Be specific. Be Demery."
+        f"{context} Bracket status:\n\n"
+        + "\n".join(lines)
+        + "\n\nDaily bracket update. Plain text, no markdown. Varied openers. "
+        "Use exact Discord tags. NEW BUSTS = headline — roast the pick-vs-exit gap. "
+        "ALL BUSTS = background. ALL ALIVE = grudging credit. No activity = backhanded. "
+        "1-2 sentences per person. Everyone mentioned. Medium intensity."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
@@ -217,6 +202,16 @@ async def generate_digest(submitters: list[dict]) -> str:
 
 
 # --- helpers ---
+
+
+def _fmt_busts(busts: list[dict]) -> str:
+    """Format bust list as compact semicolon-delimited string."""
+    return "; ".join(f"{b['team']} (pick={b['pick']}, lost={b['lost']})" for b in busts)
+
+
+def _fmt_survs(survs: list[dict]) -> str:
+    """Format survivor list as compact semicolon-delimited string."""
+    return "; ".join(f"{s['team']} (thru={s['thru']})" for s in survs)
 
 
 def _extract_json_from_text(raw: str) -> str:
@@ -274,25 +269,17 @@ def _format_submitter_lines(submitters: list[dict]) -> list[str]:
     for s in submitters:
         parts = [s["mention"]]
         today_busts = s.get("today_busts", [])
-        today_survivors = s.get("today_survivors", [])
+        today_survs = s.get("today_survivors", [])
         if today_busts:
-            bust_strs = [
-                f"{b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})" for b in today_busts
-            ]
-            parts.append("TODAY'S BUSTS: " + "; ".join(bust_strs))
-        if today_survivors:
-            surv_strs = [f"{sv['team']} (still alive through {sv['still_alive_through']})" for sv in today_survivors]
-            parts.append("TODAY'S SURVIVORS: " + "; ".join(surv_strs))
+            parts.append(f"NEW BUSTS: {_fmt_busts(today_busts)}")
+        if today_survs:
+            parts.append(f"NEW ALIVE: {_fmt_survs(today_survs)}")
         if s["busts"]:
-            bust_strs = [
-                f"{b['team']} (picked to reach {b['picked_to_reach']}, lost in {b['lost_in']})" for b in s["busts"]
-            ]
-            parts.append("ALL BUSTS (cumulative): " + "; ".join(bust_strs))
+            parts.append(f"ALL BUSTS: {_fmt_busts(s['busts'])}")
         if s["survivors"]:
-            survivor_strs = [f"{sv['team']} (still alive through {sv['still_alive_through']})" for sv in s["survivors"]]
-            parts.append("ALL SURVIVORS (cumulative): " + "; ".join(survivor_strs))
+            parts.append(f"ALL ALIVE: {_fmt_survs(s['survivors'])}")
         if not s["busts"] and not s["survivors"]:
-            parts.append("No bracket activity yet")
+            parts.append("No activity")
         lines.append(" | ".join(parts))
     return lines
 
@@ -302,16 +289,10 @@ def _determine_digest_context(submitters: list[dict]) -> str:
     today_quiet = all(not s.get("today_busts") and not s.get("today_survivors") for s in submitters)
     has_history = any(s["busts"] or s["survivors"] for s in submitters)
     if today_quiet and not has_history:
-        return "No games have been played yet — brackets are untouched."
+        return "No games yet. Brackets untouched."
     if today_quiet and has_history:
-        return (
-            "Today's games haven't finished yet (or there are none today), but the tournament "
-            "has already done some damage. Here's where everyone's bracket stands so far."
-        )
-    return (
-        "Here's how everyone's bracket is looking. Focus the narrative on TODAY'S new busts "
-        "and survivors, but use the cumulative status for overall context."
-    )
+        return "No new games today. Recap bracket standings from prior damage."
+    return "New results today. Focus on NEW, use ALL for overall context."
 
 
 def _log_digest_data(submitters: list[dict]) -> None:
