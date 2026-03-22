@@ -97,30 +97,30 @@ class TestGeneratediss:
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Duke Blue Devils" in user_content
-        assert "Champion" in user_content
+        assert "champ=" in user_content
 
     @pytest.mark.asyncio
     async def test_includes_results_busts(self, mock_anthropic, sample_picks):
         results = {
-            "busts": [{"team": "Kentucky Wildcats", "picked_to_reach": "elite_eight", "lost_in": "1st Round"}],
+            "busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round"}],
             "survivors": [],
         }
         await llm.generate_diss("Alice", "medium", bracket_data=sample_picks, results=results)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Kentucky Wildcats" in user_content
-        assert "Busted bracket picks" in user_content
+        assert "Busts:" in user_content
 
     @pytest.mark.asyncio
     async def test_includes_results_survivors(self, mock_anthropic, sample_picks):
         results = {
             "busts": [],
-            "survivors": [{"team": "Duke Blue Devils", "still_alive_through": "1st Round"}],
+            "survivors": [{"team": "Duke Blue Devils", "thru": "1st Round"}],
         }
         await llm.generate_diss("Alice", "medium", bracket_data=sample_picks, results=results)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "Survivors still alive" in user_content
+        assert "Alive:" in user_content
 
     @pytest.mark.asyncio
     async def test_no_bracket_no_picks_in_prompt(self, mock_anthropic):
@@ -179,7 +179,7 @@ class TestGenerateDigest:
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "No games have been played yet" in user_content
+        assert "No games yet" in user_content
 
     @pytest.mark.asyncio
     async def test_activity_context_with_today(self, mock_anthropic):
@@ -188,16 +188,16 @@ class TestGenerateDigest:
             {
                 "mention": "<@1>",
                 "name": "A",
-                "busts": [{"team": "X", "picked_to_reach": "sweet_16", "lost_in": "1st Round"}],
+                "busts": [{"team": "X", "pick": "sweet_16", "lost": "1st Round"}],
                 "survivors": [],
-                "today_busts": [{"team": "X", "picked_to_reach": "sweet_16", "lost_in": "1st Round"}],
+                "today_busts": [{"team": "X", "pick": "sweet_16", "lost": "1st Round"}],
                 "today_survivors": [],
             }
         ]
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "how everyone's bracket is looking" in user_content
+        assert "New results today" in user_content
 
     @pytest.mark.asyncio
     async def test_activity_context_cumulative_only(self, mock_anthropic):
@@ -206,7 +206,7 @@ class TestGenerateDigest:
             {
                 "mention": "<@1>",
                 "name": "A",
-                "busts": [{"team": "X", "picked_to_reach": "sweet_16", "lost_in": "1st Round"}],
+                "busts": [{"team": "X", "pick": "sweet_16", "lost": "1st Round"}],
                 "survivors": [],
                 "today_busts": [],
                 "today_survivors": [],
@@ -215,7 +215,7 @@ class TestGenerateDigest:
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "already done some damage" in user_content
+        assert "prior damage" in user_content.lower()
 
     @pytest.mark.asyncio
     async def test_prompt_requests_natural_style(self, mock_anthropic):
@@ -223,7 +223,7 @@ class TestGenerateDigest:
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "no headers, no bold, no bullets" in user_content
+        assert "no markdown" in user_content
 
 
 # ---------------------------------------------------------------------------

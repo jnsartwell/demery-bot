@@ -78,13 +78,13 @@ class TestComputeBracketStatus:
         )
         games = [{"winner": "Saint Peter's Peacocks", "loser": "Kentucky Wildcats", "round": "1st Round"}]
         result = _compute_bracket_status(picks, games)
-        assert result["busts"][0]["picked_to_reach"] == "elite_eight"
+        assert result["busts"][0]["pick"] == "elite_eight"
 
     def test_bust_lost_in_round(self):
         picks = self._picks(round_of_32=["Kentucky Wildcats"])
         games = [{"winner": "Saint Peter's Peacocks", "loser": "Kentucky Wildcats", "round": "1st Round"}]
         result = _compute_bracket_status(picks, games)
-        assert result["busts"][0]["lost_in"] == "1st Round"
+        assert result["busts"][0]["lost"] == "1st Round"
 
     def test_survivor_basic(self):
         picks = self._picks(round_of_32=["Duke Blue Devils"])
@@ -97,7 +97,7 @@ class TestComputeBracketStatus:
         picks = self._picks(sweet_16=["Duke Blue Devils"])
         games = [{"winner": "Duke Blue Devils", "loser": "Someone", "round": "2nd Round"}]
         result = _compute_bracket_status(picks, games)
-        assert result["survivors"][0]["still_alive_through"] == "2nd Round"
+        assert result["survivors"][0]["thru"] == "2nd Round"
 
     def test_team_not_in_picks_ignored(self):
         picks = self._picks(round_of_32=["Duke Blue Devils"])
@@ -130,7 +130,7 @@ class TestComputeBracketStatus:
         )
         games = [{"winner": "Underdog U", "loser": "Duke Blue Devils", "round": "1st Round"}]
         result = _compute_bracket_status(picks, games)
-        assert result["busts"][0]["picked_to_reach"] == "champion"
+        assert result["busts"][0]["pick"] == "champion"
 
     def test_play_in_round_skipped(self):
         picks = self._picks(round_of_32=["Duke Blue Devils"])
@@ -165,5 +165,5 @@ class TestComputeBracketStatus:
         games = [{"winner": "Upset U", "loser": "Duke Blue Devils", "round": "2nd Round"}]
         result = _compute_bracket_status(picks, games)
         assert len(result["busts"]) == 1
-        assert result["busts"][0]["picked_to_reach"] == "elite_eight"
-        assert result["busts"][0]["lost_in"] == "2nd Round"
+        assert result["busts"][0]["pick"] == "elite_eight"
+        assert result["busts"][0]["lost"] == "2nd Round"

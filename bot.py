@@ -472,20 +472,9 @@ def _compute_bracket_status(picks: dict, games: list[dict]) -> dict:
             picked_teams.update(_get_picks_for_tier(picks, t))
         if game["loser"] in picked_teams:
             furthest = _find_farthest_picked_round(game["loser"], picks) or tier
-            busts.append(
-                {
-                    "team": game["loser"],
-                    "picked_to_reach": furthest,
-                    "lost_in": game["round"],
-                }
-            )
+            busts.append({"team": game["loser"], "pick": furthest, "lost": game["round"]})
         if game["winner"] in picked_teams:
-            survivors.append(
-                {
-                    "team": game["winner"],
-                    "still_alive_through": game["round"],
-                }
-            )
+            survivors.append({"team": game["winner"], "thru": game["round"]})
     return {"busts": busts, "survivors": survivors}
 
 

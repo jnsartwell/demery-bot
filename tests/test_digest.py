@@ -89,8 +89,8 @@ class TestRunDigest:
             alice = submitters[0]
             assert len(alice["busts"]) > 0
             bust = alice["busts"][0]
-            assert "picked_to_reach" in bust
-            assert "lost_in" in bust
+            assert "pick" in bust
+            assert "lost" in bust
 
     @pytest.mark.asyncio
     async def test_survivor_context_passed(self, sample_picks, monkeypatch, mock_anthropic):
@@ -106,7 +106,7 @@ class TestRunDigest:
             alice = submitters[0]
             assert len(alice["survivors"]) > 0
             surv = alice["survivors"][0]
-            assert "still_alive_through" in surv
+            assert "thru" in surv
 
     @pytest.mark.asyncio
     async def test_no_games_empty_busts_survivors(self, sample_picks, monkeypatch, mock_anthropic):
