@@ -49,6 +49,8 @@ EXPECTED_GAMES_PER_ROUND = {
     "National Championship": 1,
 }
 
+DISCORD_MAX_MESSAGE_LENGTH = 2000
+
 PICKS_ROUND_KEYS = [k for k in ROUND_TIER_ORDER if k != "champion"]
 
 REQUIRED_PICKS_KEYS = set(ROUND_TIER_ORDER)

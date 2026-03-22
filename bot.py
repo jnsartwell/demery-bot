@@ -12,7 +12,13 @@ from dotenv import load_dotenv
 
 import db
 import espn
-from constants import EXPECTED_GAMES_PER_ROUND, ROUND_NAME_TO_TIER, ROUND_TIER_ORDER, TOURNAMENT_GAME_DATES
+from constants import (
+    DISCORD_MAX_MESSAGE_LENGTH,
+    EXPECTED_GAMES_PER_ROUND,
+    ROUND_NAME_TO_TIER,
+    ROUND_TIER_ORDER,
+    TOURNAMENT_GAME_DATES,
+)
 from llm import (
     generate_digest,
     generate_diss,
@@ -143,7 +149,7 @@ async def diss(
             results = _compute_bracket_status(bracket_data, games)
             round_progress = _compute_round_progress(games)
     diss_text = await generate_diss(user.mention, intensity_value, bracket_data, results, round_progress)
-    await interaction.followup.send(diss_text)
+    await interaction.followup.send(_truncate(diss_text))
 
 
 @client.tree.command(
@@ -172,7 +178,7 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
 
     db.upsert_bracket(interaction.user.id, interaction.guild_id, interaction.user.display_name, picks)
     ack = await generate_submission_ack(interaction.user.mention, picks)
-    await interaction.followup.send(ack)
+    await interaction.followup.send(_truncate(ack))
 
     lines = [
         f"**Champion:** {picks['champion']}",
@@ -283,7 +289,7 @@ async def testdigest(interaction: discord.Interaction):
     try:
         message = await _run_digest(broadcast=False, guild_id=interaction.guild_id)
         if message:
-            await interaction.followup.send(f"Digest preview:\n{message}", ephemeral=True)
+            await interaction.followup.send(_truncate(f"Digest preview:\n{message}"), ephemeral=True)
         else:
             await interaction.followup.send(
                 "Nothing to post — no completed games today or no brackets on file.",
@@ -302,7 +308,7 @@ async def pushdigest(interaction: discord.Interaction):
     try:
         message = await _run_digest(guild_id=interaction.guild_id)
         if message:
-            await interaction.followup.send(f"Digest pushed to channel:\n{message}", ephemeral=True)
+            await interaction.followup.send(_truncate(f"Digest pushed to channel:\n{message}"), ephemeral=True)
         else:
             await interaction.followup.send(
                 "Nothing to post — no completed games today or no brackets on file.",
@@ -357,7 +363,7 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
         if broadcast:
             channel = client.get_channel(guild_channel["channel_id"])
             if channel:
-                await channel.send(message)
+                await channel.send(_truncate(message))
         last_message = message
 
     return last_message
@@ -415,6 +421,16 @@ def _build_submitters_for_guild(guild_id: int, all_games: list[dict], today_game
             }
         )
     return submitters
+
+
+# --- message helpers ---
+
+
+def _truncate(text: str) -> str:
+    """Truncate text to fit Discord's message length limit."""
+    if len(text) <= DISCORD_MAX_MESSAGE_LENGTH:
+        return text
+    return text[: DISCORD_MAX_MESSAGE_LENGTH - 1] + "\u2026"
 
 
 # --- guard helpers ---

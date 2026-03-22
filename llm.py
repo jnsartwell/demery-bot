@@ -213,7 +213,7 @@ async def generate_digest(
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=500,
+        max_tokens=400,
         system=[
             {
                 "type": "text",
