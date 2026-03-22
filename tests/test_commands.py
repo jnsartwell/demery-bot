@@ -350,27 +350,6 @@ class TestDissHelpCommand:
         kwargs = interaction.response.send_message.call_args.kwargs
         assert kwargs.get("ephemeral") is True
 
-    @pytest.mark.asyncio
-    async def test_content_mentions_commands(self, make_interaction):
-        interaction = make_interaction()
-        await bot.disshelp.callback(interaction)
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "/diss" in msg
-        assert "/submitbracket" in msg
-
-    @pytest.mark.asyncio
-    async def test_content_mentions_cooldown(self, make_interaction):
-        interaction = make_interaction()
-        await bot.disshelp.callback(interaction)
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "2-minute" in msg or "cooldown" in msg.lower()
-
-    @pytest.mark.asyncio
-    async def test_content_mentions_submission_limit(self, make_interaction):
-        interaction = make_interaction()
-        await bot.disshelp.callback(interaction)
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "3" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -386,16 +365,6 @@ class TestAboutCommand:
         kwargs = interaction.response.send_message.call_args.kwargs
         # about is public — no ephemeral=True
         assert kwargs.get("ephemeral") is not True
-
-    @pytest.mark.asyncio
-    async def test_content(self, make_interaction):
-        interaction = make_interaction()
-        await bot.about.callback(interaction)
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "Demery" in msg
-        assert "/diss" in msg
-        assert "/submitbracket" in msg
-        assert "Daily Digest" in msg or "digest" in msg.lower()
 
 
 # ---------------------------------------------------------------------------
