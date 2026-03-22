@@ -14,6 +14,9 @@ from prompts import (
 
 client = anthropic.AsyncAnthropic()
 
+HUMOR_MODEL = "claude-opus-4-6"
+OCR_MODEL = "claude-sonnet-4-6"
+
 
 async def generate_diss(
     target_mention: str,
@@ -47,7 +50,7 @@ async def generate_diss(
             " If there's no punchline, rewrite. Never cite scores."
         )
     response = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=HUMOR_MODEL,
         max_tokens=150,
         system=[
             {
@@ -71,7 +74,7 @@ async def generate_submission_ack(mention: str, picks: dict) -> str:
         "Stick the landing."
     )
     response = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=HUMOR_MODEL,
         max_tokens=80,
         system=[
             {
@@ -101,7 +104,7 @@ async def parse_bracket_image(image_url: str) -> dict:
     image_b64 = base64.standard_b64encode(image_bytes).decode()
 
     response = await client.messages.create(
-        model="claude-sonnet-4-6",
+        model=OCR_MODEL,
         max_tokens=1000,
         messages=[
             {
@@ -230,7 +233,7 @@ async def generate_digest(
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=HUMOR_MODEL,
         max_tokens=500,
         system=[
             {
