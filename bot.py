@@ -13,9 +13,12 @@ from dotenv import load_dotenv
 import db
 import espn
 from constants import (
+    ALLOWED_IMAGE_EXTENSIONS,
+    ALLOWED_IMAGE_TYPES,
     EXPECTED_GAMES_PER_ROUND,
     ROUND_NAME_TO_TIER,
     ROUND_TIER_ORDER,
+    SUPPORTED_IMAGE_FORMATS_LABEL,
     TOURNAMENT_GAME_DATES,
 )
 from llm import (
@@ -140,10 +143,26 @@ async def diss(
 
 @client.tree.command(
     name="submitbracket",
-    description="Upload a screenshot of your bracket so Demery knows your picks",
+    description=f"Upload a screenshot of your bracket ({SUPPORTED_IMAGE_FORMATS_LABEL})",
 )
-@app_commands.describe(image="A screenshot of your filled-out bracket")
+@app_commands.describe(image=f"A screenshot of your filled-out bracket ({SUPPORTED_IMAGE_FORMATS_LABEL})")
 async def submit_bracket(interaction: discord.Interaction, image: discord.Attachment):
+    # Validate file type before doing any work
+    content_type = image.content_type or ""
+    filename = (image.filename or "").lower()
+    ext = "." + filename.rsplit(".", 1)[-1] if "." in filename else ""
+
+    type_ok = content_type.split(";")[0].strip() in ALLOWED_IMAGE_TYPES
+    ext_ok = ext in ALLOWED_IMAGE_EXTENSIONS
+
+    if not type_ok and not ext_ok:
+        await interaction.response.send_message(
+            "That doesn't look like a supported image. "
+            f"Please upload a **{SUPPORTED_IMAGE_FORMATS_LABEL}** screenshot of your bracket.",
+            ephemeral=True,
+        )
+        return
+
     if await _check_submit_rate_limit(interaction):
         return
 
@@ -153,6 +172,14 @@ async def submit_bracket(interaction: discord.Interaction, image: discord.Attach
         picks = await parse_bracket_image(image.url)
     except ValueError as e:
         await interaction.followup.send(f"Couldn't read your bracket from that image: {e}", ephemeral=True)
+        return
+    except Exception as e:
+        print(f"Unexpected error parsing bracket image: {e}")
+        await interaction.followup.send(
+            "Something went wrong while reading your bracket. "
+            f"Make sure you're uploading a clear screenshot ({SUPPORTED_IMAGE_FORMATS_LABEL}) and try again.",
+            ephemeral=True,
+        )
         return
 
     try:
