@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 import db
 import espn
-from constants import ROUND_NAME_TO_TIER, ROUND_TIER_ORDER, TOURNAMENT_GAME_DATES
+from constants import EXPECTED_GAMES_PER_ROUND, ROUND_NAME_TO_TIER, ROUND_TIER_ORDER, TOURNAMENT_GAME_DATES
 from llm import (
     generate_digest,
     generate_diss,
@@ -136,11 +136,13 @@ async def diss(
     await interaction.response.defer()
     bracket_data = db.get_bracket(user.id, interaction.guild_id)
     results = None
+    round_progress = None
     if bracket_data:
         games = await espn.fetch_tournament_results()
         if games:
             results = _compute_bracket_status(bracket_data, games)
-    diss_text = await generate_diss(user.mention, intensity_value, bracket_data, results)
+            round_progress = _compute_round_progress(games)
+    diss_text = await generate_diss(user.mention, intensity_value, bracket_data, results, round_progress)
     await interaction.followup.send(diss_text)
 
 
@@ -350,7 +352,8 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
 
         print(f"[digest] Guild {guild_channel['guild_id']}: sending to LLM with {len(submitters)} submitters")
         shared = _compute_shared_busts(submitters)
-        message = await generate_digest(submitters, today_games, shared)
+        round_progress = _compute_round_progress(all_games)
+        message = await generate_digest(submitters, today_games, shared, round_progress)
         if broadcast:
             channel = client.get_channel(guild_channel["channel_id"])
             if channel:
@@ -476,6 +479,16 @@ def _compute_bracket_status(picks: dict, games: list[dict]) -> dict:
             busts.append({"team": game["loser"], "pick": furthest, "lost": game["round"]})
         if game["winner"] in picked_teams:
             survivors.append({"team": game["winner"], "thru": game["round"]})
+
+    # Deduplicate survivors — keep only the latest round per team
+    seen = {}
+    for s in survivors:
+        tier = ROUND_NAME_TO_TIER.get(s["thru"])
+        idx = ROUND_TIER_ORDER.index(tier) if tier else -1
+        if s["team"] not in seen or idx > seen[s["team"]][1]:
+            seen[s["team"]] = (s, idx)
+    survivors = [entry for entry, _ in seen.values()]
+
     return {"busts": busts, "survivors": survivors}
 
 
@@ -493,6 +506,16 @@ def _find_farthest_picked_round(team: str, picks: dict) -> str | None:
         if team in _get_picks_for_tier(picks, tier):
             return tier
     return None
+
+
+def _compute_round_progress(games: list[dict]) -> dict:
+    """Returns {round_name: {completed: N, total: N}} for rounds with at least one game."""
+    counts = {}
+    for game in games:
+        round_name = game["round"]
+        if round_name in EXPECTED_GAMES_PER_ROUND:
+            counts[round_name] = counts.get(round_name, 0) + 1
+    return {rnd: {"completed": count, "total": EXPECTED_GAMES_PER_ROUND[rnd]} for rnd, count in counts.items()}
 
 
 def _compute_shared_busts(submitters: list[dict]) -> list[dict]:
