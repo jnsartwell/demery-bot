@@ -219,12 +219,13 @@ async def generate_digest(
         "Weave in game results naturally — don't list scores, "
         "use them to twist the knife. "
         "1-2 punchy sentences per person, plus shared-bust callouts. "
-        "Mild intensity. Be funny. Be specific. Be Demery."
+        "Mild intensity. Be funny. Be specific. Be Demery. "
+        "IMPORTANT: Your entire response must be under 2000 characters to fit in a single Discord message."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=300,
+        max_tokens=500,
         system=[
             {
                 "type": "text",
