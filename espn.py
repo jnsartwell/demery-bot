@@ -89,7 +89,7 @@ async def fetch_today_results(date_str: str) -> list[dict]:
 
 
 def _parse_game_result(event: dict) -> dict | None:
-    """Parse a single ESPN event into {winner, loser, round} or None if incomplete."""
+    """Parse a single ESPN event into {winner, loser, round, region, seeds} or None if incomplete."""
     completed = event.get("status", {}).get("type", {}).get("completed")
     if not completed:
         return None
@@ -101,7 +101,7 @@ def _parse_game_result(event: dict) -> dict | None:
     if not winner or not loser:
         return None
 
-    round_name = _parse_round_name(competition)
+    round_name, region = _parse_round_and_region(competition)
 
     winner_score = int(winner.get("score", 0))
     loser_score = int(loser.get("score", 0))
@@ -110,19 +110,28 @@ def _parse_game_result(event: dict) -> dict | None:
         "winner": winner["team"]["displayName"],
         "loser": loser["team"]["displayName"],
         "round": round_name,
+        "region": region,
+        "winner_seed": winner.get("seed"),
+        "loser_seed": loser.get("seed"),
         "winner_score": winner_score,
         "loser_score": loser_score,
     }
 
 
-def _parse_round_name(competition: dict) -> str:
-    """Extract round name from competition notes headline, falling back to type.text."""
-    # ESPN headline format: "NCAA Men's Basketball Championship - East Region - 1st Round"
+def _parse_round_and_region(competition: dict) -> tuple[str, str | None]:
+    """Extract (round_name, region) from competition notes headline.
+
+    ESPN headline format: "NCAA Men's Basketball Championship - East Region - 1st Round"
+    Region is None for Final Four and Championship games.
+    """
     notes = competition.get("notes", [])
     headline = notes[0].get("headline", "") if notes else ""
     if " - " in headline:
-        return headline.rsplit(" - ", 1)[-1]
-    return competition.get("type", {}).get("text", "tournament")
+        parts = [p.strip() for p in headline.split(" - ")]
+        round_name = parts[-1]
+        region = parts[-2] if len(parts) >= 3 and "Region" in parts[-2] else None
+        return round_name, region
+    return competition.get("type", {}).get("text", "tournament"), None
 
 
 def _extract_team_names_from_events(events: list[dict]) -> set[str]:

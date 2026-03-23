@@ -20,18 +20,43 @@ ESPN_URL_PATTERN = re.compile(r".*scoreboard.*")
 # ---------------------------------------------------------------------------
 
 
-def _espn_event(winner_name, loser_name, round_name="1st Round", completed=True, winner_score=75, loser_score=60):
+def _espn_event(
+    winner_name,
+    loser_name,
+    round_name="1st Round",
+    completed=True,
+    winner_score=75,
+    loser_score=60,
+    winner_seed="1",
+    loser_seed="16",
+    region="East Region",
+):
     """Build a minimal ESPN event dict."""
+    headline = (
+        f"NCAA Men's Basketball Championship - {region} - {round_name}"
+        if region
+        else f"NCAA Men's Basketball Championship - {round_name}"
+    )
     return {
         "name": f"{winner_name} vs {loser_name}",
         "status": {"type": {"completed": completed, "name": "STATUS_FINAL" if completed else "STATUS_IN_PROGRESS"}},
         "competitions": [
             {
                 "competitors": [
-                    {"winner": True, "team": {"displayName": winner_name}, "score": str(winner_score)},
-                    {"winner": False, "team": {"displayName": loser_name}, "score": str(loser_score)},
+                    {
+                        "winner": True,
+                        "team": {"displayName": winner_name},
+                        "score": str(winner_score),
+                        "seed": winner_seed,
+                    },
+                    {
+                        "winner": False,
+                        "team": {"displayName": loser_name},
+                        "score": str(loser_score),
+                        "seed": loser_seed,
+                    },
                 ],
-                "notes": [{"headline": f"NCAA Men's Basketball Championship - East Region - {round_name}"}],
+                "notes": [{"headline": headline}],
                 "type": {"text": "tournament"},
             }
         ],
@@ -121,6 +146,51 @@ class TestFetchTodayResults:
             )
             results = await espn.fetch_today_results("20260319")
         assert results[0]["round"] == "Sweet 16"
+
+    @pytest.mark.asyncio
+    async def test_returns_seeds(self):
+        with aioresponses() as m:
+            m.get(
+                ESPN_URL_PATTERN,
+                payload={
+                    "events": [
+                        _espn_event("Duke Blue Devils", "Vermont Catamounts", winner_seed="1", loser_seed="16"),
+                    ]
+                },
+            )
+            results = await espn.fetch_today_results("20260319")
+        assert results[0]["winner_seed"] == "1"
+        assert results[0]["loser_seed"] == "16"
+
+    @pytest.mark.asyncio
+    async def test_returns_region(self):
+        with aioresponses() as m:
+            m.get(
+                ESPN_URL_PATTERN,
+                payload={
+                    "events": [
+                        _espn_event("Duke Blue Devils", "Vermont Catamounts", region="East Region"),
+                    ]
+                },
+            )
+            results = await espn.fetch_today_results("20260319")
+        assert results[0]["region"] == "East Region"
+
+    @pytest.mark.asyncio
+    async def test_region_none_for_final_four(self):
+        """Final Four headline has no region segment."""
+        with aioresponses() as m:
+            m.get(
+                ESPN_URL_PATTERN,
+                payload={
+                    "events": [
+                        _espn_event("Duke Blue Devils", "Kansas Jayhawks", round_name="Final Four", region=None),
+                    ]
+                },
+            )
+            results = await espn.fetch_today_results("20260319")
+        assert results[0]["region"] is None
+        assert results[0]["round"] == "Final Four"
 
     @pytest.mark.asyncio
     async def test_round_fallback_to_type_text(self):

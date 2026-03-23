@@ -134,23 +134,66 @@ def get_all_guild_channels() -> list[dict]:
 
 
 def save_game_results(date_str: str, games: list[dict]):
-    """Persist ESPN game results for a date. Idempotent via INSERT OR IGNORE."""
+    """Persist ESPN game results for a date.
+
+    Inserts new rows and backfills seed/region on existing rows that have NULL values,
+    so re-fetching a date is safe and idempotent.
+    """
     with sqlite3.connect(DB_PATH) as con:
         con.executemany(
-            "INSERT OR IGNORE INTO game_results (game_date, winner, loser, round) VALUES (?, ?, ?, ?)",
-            [(date_str, g["winner"], g["loser"], g["round"]) for g in games],
+            """
+            INSERT INTO game_results (game_date, winner, loser, round, winner_seed, loser_seed, region)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(game_date, winner, loser) DO UPDATE SET
+                winner_seed = COALESCE(winner_seed, excluded.winner_seed),
+                loser_seed  = COALESCE(loser_seed,  excluded.loser_seed),
+                region      = COALESCE(region,      excluded.region)
+            """,
+            [
+                (
+                    date_str,
+                    g["winner"],
+                    g["loser"],
+                    g["round"],
+                    g.get("winner_seed"),
+                    g.get("loser_seed"),
+                    g.get("region"),
+                )
+                for g in games
+            ],
         )
 
 
 def get_all_game_results() -> list[dict]:
     """Load all persisted game results across all dates."""
     with sqlite3.connect(DB_PATH) as con:
-        rows = con.execute("SELECT game_date, winner, loser, round FROM game_results ORDER BY game_date").fetchall()
-    return [{"game_date": r[0], "winner": r[1], "loser": r[2], "round": r[3]} for r in rows]
+        rows = con.execute(
+            "SELECT game_date, winner, loser, round, winner_seed, loser_seed, region "
+            "FROM game_results ORDER BY game_date"
+        ).fetchall()
+    return [
+        {
+            "game_date": r[0],
+            "winner": r[1],
+            "loser": r[2],
+            "round": r[3],
+            "winner_seed": r[4],
+            "loser_seed": r[5],
+            "region": r[6],
+        }
+        for r in rows
+    ]
 
 
 def get_game_result_dates() -> set[str]:
     """Return the set of date strings that have stored game results."""
     with sqlite3.connect(DB_PATH) as con:
         rows = con.execute("SELECT DISTINCT game_date FROM game_results").fetchall()
+    return {r[0] for r in rows}
+
+
+def get_seedless_game_dates() -> set[str]:
+    """Return dates that have game results but are missing seed data."""
+    with sqlite3.connect(DB_PATH) as con:
+        rows = con.execute("SELECT DISTINCT game_date FROM game_results WHERE winner_seed IS NULL").fetchall()
     return {r[0] for r in rows}

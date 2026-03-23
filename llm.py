@@ -258,12 +258,21 @@ async def generate_digest(
 
 def _fmt_busts(busts: list[dict]) -> str:
     """Format bust list as compact semicolon-delimited string."""
-    return "; ".join(f"{b['team']} (pick={b['pick']}, lost={b['lost']})" for b in busts)
+    parts = []
+    for b in busts:
+        seed = f"({b['seed']}) " if b.get("seed") else ""
+        region = f" [{b['region']}]" if b.get("region") else ""
+        parts.append(f"{seed}{b['team']}{region} (pick={b['pick']}, lost={b['lost']})")
+    return "; ".join(parts)
 
 
 def _fmt_survs(survs: list[dict]) -> str:
     """Format survivor list as compact semicolon-delimited string."""
-    return "; ".join(f"{s['team']} (thru={s['thru']})" for s in survs)
+    parts = []
+    for s in survs:
+        seed = f"({s['seed']}) " if s.get("seed") else ""
+        parts.append(f"{seed}{s['team']} (thru={s['thru']})")
+    return "; ".join(parts)
 
 
 def _fmt_round_progress(round_progress: dict) -> str:
