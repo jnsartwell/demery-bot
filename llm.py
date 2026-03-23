@@ -5,7 +5,14 @@ import re
 import aiohttp
 import anthropic
 
-from constants import ALLOWED_IMAGE_TYPES, PICKS_ROUND_KEYS, REQUIRED_PICKS_KEYS, SUPPORTED_IMAGE_FORMATS_LABEL
+from constants import (
+    ALLOWED_IMAGE_TYPES,
+    PICKS_ROUND_KEYS,
+    REQUIRED_PICKS_KEYS,
+    ROUND_NAME_TO_TIER,
+    ROUND_TIER_ORDER,
+    SUPPORTED_IMAGE_FORMATS_LABEL,
+)
 from prompts import (
     NORMALIZE_TEAM_NAMES_PROMPT,
     PARSE_BRACKET_IMAGE_PROMPT,
@@ -222,7 +229,9 @@ async def generate_digest(
         "CRITICAL: each person's Discord tag (e.g. <@123456>) must appear "
         "EXACTLY ONCE. Never repeat a tag. Never type out names. "
         "Every person gets roasted — no one gets off easy. "
-        "Spend the most material on today's biggest busts and the most absurd picks. "
+        "For each person, pick the 1-2 most roast-worthy schools and commit to them. "
+        "Don't list every bust — roast the school itself. What kind of school is it? "
+        "What's funny about someone trusting them to win? That's where the joke lives. "
         "When multiple people share the same bust, roast them as a group — "
         "they walked into this together. "
         "Write like you're telling a story, not reading a list. "
@@ -333,25 +342,52 @@ def _extract_and_validate_picks(raw: str) -> dict:
     return picks
 
 
-def _format_submitter_lines(submitters: list[dict]) -> list[str]:
-    """Build pipe-delimited status lines for each submitter."""
+def _format_submitter_lines(submitters: list[dict], max_older: int = 3) -> list[str]:
+    """Build pipe-delimited status lines for each submitter.
+
+    Includes all of today's busts/survivors in full detail, plus up to
+    max_older older busts sorted by biggest pick-vs-exit gap (most absurd first).
+    If more exist, appends a count.
+    """
     lines = []
     for s in submitters:
         parts = [s["mention"]]
         today_busts = s.get("today_busts", [])
         today_survs = s.get("today_survivors", [])
+        today_bust_teams = {b["team"] for b in today_busts}
+        today_surv_teams = {sv["team"] for sv in today_survs}
         if today_busts:
             parts.append(f"NEW BUSTS: {_fmt_busts(today_busts)}")
         if today_survs:
             parts.append(f"NEW ALIVE: {_fmt_survs(today_survs)}")
-        if s["busts"]:
-            parts.append(f"ALL BUSTS: {_fmt_busts(s['busts'])}")
-        if s["survivors"]:
-            parts.append(f"ALL ALIVE: {_fmt_survs(s['survivors'])}")
+        older_busts = [b for b in s["busts"] if b["team"] not in today_bust_teams]
+        if older_busts:
+            older_busts = sorted(older_busts, key=_bust_absurdity, reverse=True)
+            shown = older_busts[:max_older]
+            parts.append(f"PRIOR BUSTS: {_fmt_busts(shown)}")
+            if len(older_busts) > max_older:
+                parts.append(f"+{len(older_busts) - max_older} more busts")
+        older_survs = [sv for sv in s["survivors"] if sv["team"] not in today_surv_teams]
+        if older_survs:
+            shown = older_survs[:max_older]
+            parts.append(f"PRIOR ALIVE: {_fmt_survs(shown)}")
+            if len(older_survs) > max_older:
+                parts.append(f"+{len(older_survs) - max_older} more alive")
         if not s["busts"] and not s["survivors"]:
             parts.append("No activity")
         lines.append(" | ".join(parts))
     return lines
+
+
+def _bust_absurdity(bust: dict) -> int:
+    """Score a bust by the gap between where they were picked to go and where they lost.
+
+    Higher score = more absurd (e.g., champion pick lost in 1st round = 5).
+    """
+    pick_idx = ROUND_TIER_ORDER.index(bust["pick"]) if bust["pick"] in ROUND_TIER_ORDER else 0
+    lost_tier = ROUND_NAME_TO_TIER.get(bust["lost"])
+    lost_idx = ROUND_TIER_ORDER.index(lost_tier) if lost_tier in ROUND_TIER_ORDER else 0
+    return pick_idx - lost_idx
 
 
 def _determine_digest_context(submitters: list[dict]) -> str:
