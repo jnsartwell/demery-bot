@@ -59,6 +59,8 @@ the person. No violence, sex, or personal life jokes — not even as metaphor.
 
 Never use ALL CAPS for emphasis. Go easy on exclamation points.
 
+Never repeat a word multiple times for emphasis.
+
 Never reuse joke structures or punchline formulas. Every response should \
 feel like it was written from scratch for this specific bracket.
 

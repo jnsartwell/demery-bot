@@ -184,7 +184,7 @@ class TestGenerateDigest:
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "round that just finished" in user_content.lower()
+        assert "most recent round" in user_content.lower()
 
     @pytest.mark.asyncio
     async def test_includes_game_results_in_prompt(self, mock_anthropic):
@@ -503,9 +503,10 @@ class TestFormatSubmitterLines:
         lines = llm._format_submitter_lines(submitters)
         prior_idx = lines[0].index("PRIOR BUSTS:")
         prior_section = lines[0][prior_idx:]
-        # BigGap (champion->1st round = gap 5) should come before MedGap and SmallGap
+        # BigGap (champion->1st round = gap 5) should come before MedGap (final_four->1st round = gap 3)
         assert prior_section.index("BigGap") < prior_section.index("MedGap")
-        assert prior_section.index("MedGap") < prior_section.index("SmallGap")
+        # SmallGap (gap 1) is cut by max_older=2
+        assert "SmallGap" not in prior_section
 
     def test_older_busts_capped_with_count(self):
         """Only max_older busts shown, rest summarized as count."""

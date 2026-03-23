@@ -49,6 +49,14 @@ EXPECTED_GAMES_PER_ROUND = {
     "National Championship": 1,
 }
 
+EXPECTED_PICKS_PER_ROUND = {
+    "round_of_32": 32,
+    "sweet_16": 16,
+    "elite_eight": 8,
+    "final_four": 4,
+    "championship_game": 2,
+}
+
 PICKS_ROUND_KEYS = [k for k in ROUND_TIER_ORDER if k != "champion"]
 
 REQUIRED_PICKS_KEYS = set(ROUND_TIER_ORDER)
