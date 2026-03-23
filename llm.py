@@ -223,7 +223,7 @@ async def generate_digest(
         "Survivors get acknowledged. No-activity people get acknowledged. "
         "When multiple people share the same bust, roast them as a group — "
         "they walked into this together. "
-        "Write a tight narrative that weaves everyone together — not a list of individual zingers. Be Demery."
+        "Write a tight narrative that weaves everyone together. Be Demery."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
