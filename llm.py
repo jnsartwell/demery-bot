@@ -43,7 +43,7 @@ async def generate_diss(
                 data_lines.append(f"Alive: {_fmt_survs(results['survivors'])}")
         if round_progress:
             data_lines.append(_fmt_round_progress(round_progress))
-        content += "\n<context>\n" + "\n".join(data_lines) + "\n</context>"
+        content += "\n<data>\n" + "\n".join(data_lines) + "\n</data>"
     if bracket_data or results:
         content += "\nMake the roast specific to their actual picks."
     response = await client.messages.create(
@@ -200,7 +200,7 @@ async def generate_digest(
     _log_digest_data(submitters)
     context = _determine_digest_context(submitters)
 
-    content = "<context>\n" + f"{context} Bracket status:\n\n" + "\n".join(lines)
+    content = f"<context>\n{context}\n</context>\n<data>\nBracket status:\n\n" + "\n".join(lines)
 
     if today_games:
         content += "\n\nToday's results: " + _fmt_games(today_games)
@@ -213,7 +213,7 @@ async def generate_digest(
     if round_progress:
         content += f"\n\n{_fmt_round_progress(round_progress)}"
 
-    content += "\n</context>"
+    content += "\n</data>"
 
     content += (
         "\n\nHARD LIMIT: Your entire response must be under 1000 characters. "
