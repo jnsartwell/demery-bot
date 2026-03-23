@@ -21,7 +21,7 @@ from prompts import (
 
 client = anthropic.AsyncAnthropic()
 
-HUMOR_MODEL = "claude-opus-4-6"
+HUMOR_MODEL = "claude-sonnet-4-6"
 OCR_MODEL = "claude-sonnet-4-6"
 
 
@@ -239,15 +239,12 @@ async def generate_digest(
         "90% of the digest should be about yesterday's games — what happened, who got burned. "
         "10% overall bracket health. Don't rehash old busts that were already covered in prior digests. "
         "Never repeat a word multiple times for emphasis. "
-        "If a bracket is flagged INCOMPLETE, roast them for it — "
-        "either they're trying to game the system or they need to resubmit their image. "
-        "HARD LIMIT: stay under 900 characters total. Be punchy — if it doesn't land "
-        "in a sentence, cut it."
+        "HARD LIMIT: stay under 1200 characters total. Be punchy."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model=HUMOR_MODEL,
-        max_tokens=600,
+        max_tokens=800,
         system=[
             {
                 "type": "text",
@@ -382,8 +379,6 @@ def _format_submitter_lines(submitters: list[dict], max_older: int = 2) -> list[
                 parts.append(f"+{len(older_survs) - max_older} more alive")
         if not s["busts"] and not s["survivors"]:
             parts.append("No activity")
-        if s.get("incomplete"):
-            parts.append(f"INCOMPLETE BRACKET: {', '.join(s['incomplete'])}")
         lines.append(" | ".join(parts))
     return lines
 

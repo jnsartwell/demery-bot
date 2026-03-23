@@ -16,7 +16,6 @@ from constants import (
     ALLOWED_IMAGE_EXTENSIONS,
     ALLOWED_IMAGE_TYPES,
     EXPECTED_GAMES_PER_ROUND,
-    EXPECTED_PICKS_PER_ROUND,
     ROUND_NAME_TO_TIER,
     ROUND_TIER_ORDER,
     SUPPORTED_IMAGE_FORMATS_LABEL,
@@ -442,7 +441,6 @@ def _build_submitters_for_guild(guild_id: int, all_games: list[dict], today_game
             f"{len(cumulative_status['busts'])} total busts ({len(today_status['busts'])} today), "
             f"{len(cumulative_status['survivors'])} total survivors ({len(today_status['survivors'])} today)"
         )
-        missing_rounds = _find_incomplete_rounds(picks)
         submitters.append(
             {
                 "mention": f"<@{entry['discord_user_id']}>",
@@ -451,7 +449,6 @@ def _build_submitters_for_guild(guild_id: int, all_games: list[dict], today_game
                 "survivors": cumulative_status["survivors"],
                 "today_busts": today_status["busts"],
                 "today_survivors": today_status["survivors"],
-                "incomplete": missing_rounds,
             }
         )
     return submitters
@@ -535,18 +532,6 @@ async def _check_submit_rate_limit(interaction: discord.Interaction) -> bool:
 
 
 # --- computation helpers ---
-
-
-def _find_incomplete_rounds(picks: dict) -> list[str]:
-    """Return list of short descriptions for any rounds with fewer picks than expected."""
-    gaps = []
-    for round_key, expected in EXPECTED_PICKS_PER_ROUND.items():
-        actual = len(picks.get(round_key, []))
-        if actual < expected:
-            gaps.append(f"{round_key} {actual}/{expected}")
-    if not picks.get("champion"):
-        gaps.append("champion missing")
-    return gaps
 
 
 def _compute_bracket_status(picks: dict, games: list[dict]) -> dict:
