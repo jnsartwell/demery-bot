@@ -235,12 +235,19 @@ async def generate_digest(
         "When multiple people share the same bust, roast them as a group — "
         "they walked into this together. "
         "Write like you're telling a story, not reading a list. "
-        "Weave people and picks together into a flowing narrative. Be Demery."
+        "Weave people and picks together into a flowing narrative. Be Demery. "
+        "90% of the digest should be about yesterday's games — what happened, who got burned. "
+        "10% overall bracket health. Don't rehash old busts that were already covered in prior digests. "
+        "Never repeat a word multiple times for emphasis. "
+        "If a bracket is flagged INCOMPLETE, roast them for it — "
+        "either they're trying to game the system or they need to resubmit their image. "
+        "HARD LIMIT: stay under 900 characters total. Be punchy — if it doesn't land "
+        "in a sentence, cut it."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model=HUMOR_MODEL,
-        max_tokens=1500,
+        max_tokens=600,
         system=[
             {
                 "type": "text",
@@ -342,7 +349,7 @@ def _extract_and_validate_picks(raw: str) -> dict:
     return picks
 
 
-def _format_submitter_lines(submitters: list[dict], max_older: int = 3) -> list[str]:
+def _format_submitter_lines(submitters: list[dict], max_older: int = 2) -> list[str]:
     """Build pipe-delimited status lines for each submitter.
 
     Includes all of today's busts/survivors in full detail, plus up to
@@ -375,6 +382,8 @@ def _format_submitter_lines(submitters: list[dict], max_older: int = 3) -> list[
                 parts.append(f"+{len(older_survs) - max_older} more alive")
         if not s["busts"] and not s["survivors"]:
             parts.append("No activity")
+        if s.get("incomplete"):
+            parts.append(f"INCOMPLETE BRACKET: {', '.join(s['incomplete'])}")
         lines.append(" | ".join(parts))
     return lines
 
@@ -397,8 +406,8 @@ def _determine_digest_context(submitters: list[dict]) -> str:
     if today_quiet and not has_history:
         return "No games yet. Brackets untouched."
     if today_quiet and has_history:
-        return "No new results. Frame around the round that just finished, not the schedule."
-    return "New results today. Focus on NEW, use ALL for overall context."
+        return "No new results. Recap where brackets stand after the most recent round."
+    return "New results today."
 
 
 def _log_digest_data(submitters: list[dict]) -> None:
