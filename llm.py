@@ -227,7 +227,7 @@ async def generate_digest(
         "Survivors get acknowledged. No-activity people get acknowledged. "
         "When multiple people share the same bust, roast them as a group — "
         "they walked into this together. "
-        "Never cite actual scores or point totals. Use the outcome and the drama, not the numbers. "
+        "Never cite actual scores or point totals — they kill the joke. Seeds are fair game. "
         "One tight zinger per person. Plus shared-bust callouts. Every line must land. "
         "Wit over volume. Zingers, not observations. Be Demery. "
         "IMPORTANT: Your entire response must be under 2000 characters to fit in a single Discord message."
