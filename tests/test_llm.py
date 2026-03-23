@@ -463,3 +463,112 @@ class TestExtractAndValidatePicks:
     def test_unparseable_raises(self):
         with pytest.raises(ValueError, match="No JSON object found"):
             llm._extract_and_validate_picks("This is not JSON at all")
+
+
+class TestFormatSubmitterLines:
+    """Tests for _format_submitter_lines — data trimming and absurdity sorting."""
+
+    def test_today_busts_shown_in_full(self):
+        submitters = [
+            {
+                "mention": "<@1>",
+                "busts": [{"team": "Duke", "pick": "champion", "lost": "1st Round"}],
+                "survivors": [],
+                "today_busts": [{"team": "Duke", "pick": "champion", "lost": "1st Round"}],
+                "today_survivors": [],
+            }
+        ]
+        lines = llm._format_submitter_lines(submitters)
+        assert len(lines) == 1
+        assert "NEW BUSTS:" in lines[0]
+        assert "Duke" in lines[0]
+        # Today's bust should not also appear as a prior bust
+        assert "PRIOR BUSTS:" not in lines[0]
+
+    def test_older_busts_sorted_by_absurdity(self):
+        """Most absurd bust (biggest pick-vs-exit gap) should appear first."""
+        submitters = [
+            {
+                "mention": "<@1>",
+                "busts": [
+                    {"team": "SmallGap", "pick": "sweet_16", "lost": "1st Round"},
+                    {"team": "BigGap", "pick": "champion", "lost": "1st Round"},
+                    {"team": "MedGap", "pick": "final_four", "lost": "1st Round"},
+                ],
+                "survivors": [],
+                "today_busts": [],
+                "today_survivors": [],
+            }
+        ]
+        lines = llm._format_submitter_lines(submitters)
+        prior_idx = lines[0].index("PRIOR BUSTS:")
+        prior_section = lines[0][prior_idx:]
+        # BigGap (champion->1st round = gap 5) should come before MedGap and SmallGap
+        assert prior_section.index("BigGap") < prior_section.index("MedGap")
+        assert prior_section.index("MedGap") < prior_section.index("SmallGap")
+
+    def test_older_busts_capped_with_count(self):
+        """Only max_older busts shown, rest summarized as count."""
+        busts = [{"team": f"Team{i}", "pick": "sweet_16", "lost": "1st Round"} for i in range(6)]
+        submitters = [
+            {
+                "mention": "<@1>",
+                "busts": busts,
+                "survivors": [],
+                "today_busts": [],
+                "today_survivors": [],
+            }
+        ]
+        lines = llm._format_submitter_lines(submitters, max_older=3)
+        assert "+3 more busts" in lines[0]
+
+    def test_today_busts_not_duplicated_in_prior(self):
+        """A bust that appears in today_busts should not also appear in PRIOR BUSTS."""
+        today_bust = {"team": "Duke", "pick": "champion", "lost": "1st Round"}
+        older_bust = {"team": "Arizona", "pick": "sweet_16", "lost": "1st Round"}
+        submitters = [
+            {
+                "mention": "<@1>",
+                "busts": [today_bust, older_bust],
+                "survivors": [],
+                "today_busts": [today_bust],
+                "today_survivors": [],
+            }
+        ]
+        lines = llm._format_submitter_lines(submitters)
+        # Duke should appear once (in NEW BUSTS), not again in PRIOR BUSTS
+        assert lines[0].count("Duke") == 1
+        # Arizona should appear in PRIOR BUSTS
+        assert "PRIOR BUSTS:" in lines[0]
+        assert "Arizona" in lines[0]
+
+    def test_today_survivors_not_duplicated_in_prior(self):
+        """A survivor in today_survivors should not also appear in PRIOR ALIVE."""
+        today_surv = {"team": "Duke", "thru": "2nd Round"}
+        older_surv = {"team": "Arizona", "thru": "1st Round"}
+        submitters = [
+            {
+                "mention": "<@1>",
+                "busts": [],
+                "survivors": [today_surv, older_surv],
+                "today_busts": [],
+                "today_survivors": [today_surv],
+            }
+        ]
+        lines = llm._format_submitter_lines(submitters)
+        assert lines[0].count("Duke") == 1
+        assert "PRIOR ALIVE:" in lines[0]
+        assert "Arizona" in lines[0]
+
+    def test_no_activity(self):
+        submitters = [
+            {
+                "mention": "<@1>",
+                "busts": [],
+                "survivors": [],
+                "today_busts": [],
+                "today_survivors": [],
+            }
+        ]
+        lines = llm._format_submitter_lines(submitters)
+        assert "No activity" in lines[0]
