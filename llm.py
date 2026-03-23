@@ -228,7 +228,7 @@ async def generate_digest(
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model=HUMOR_MODEL,
-        max_tokens=500,
+        max_tokens=1500,
         system=[
             {
                 "type": "text",
