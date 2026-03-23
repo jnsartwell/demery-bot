@@ -332,13 +332,37 @@ class TestCumulativeDigest:
 
     @pytest.mark.asyncio
     async def test_digest_skips_backfill_when_history_exists(self, sample_picks, monkeypatch, mock_anthropic):
-        """If historical dates already exist in DB, backfill does not re-fetch them."""
+        """If historical dates already exist in DB with seeds, backfill does not re-fetch them."""
         db.set_guild_channel(9001, 5001)
         db.upsert_bracket(1001, 9001, "Alice", sample_picks)
 
-        # Pre-populate historical dates
-        db.save_game_results("20260317", [{"winner": "A", "loser": "B", "round": "First Four"}])
-        db.save_game_results("20260318", [{"winner": "C", "loser": "D", "round": "First Four"}])
+        # Pre-populate historical dates with seeds so they are considered complete
+        db.save_game_results(
+            "20260317",
+            [
+                {
+                    "winner": "A",
+                    "loser": "B",
+                    "round": "First Four",
+                    "winner_seed": "1",
+                    "loser_seed": "16",
+                    "region": None,
+                }
+            ],
+        )
+        db.save_game_results(
+            "20260318",
+            [
+                {
+                    "winner": "C",
+                    "loser": "D",
+                    "round": "First Four",
+                    "winner_seed": "2",
+                    "loser_seed": "15",
+                    "region": None,
+                }
+            ],
+        )
 
         et_time = datetime.datetime(2026, 3, 19, 12, 0, 0, tzinfo=bot.EASTERN)
 

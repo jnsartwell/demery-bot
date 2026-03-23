@@ -351,7 +351,17 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
     await _backfill_historical_games(today_date)
 
     all_results = db.get_all_game_results()
-    all_games = [{"winner": r["winner"], "loser": r["loser"], "round": r["round"]} for r in all_results]
+    all_games = [
+        {
+            "winner": r["winner"],
+            "loser": r["loser"],
+            "round": r["round"],
+            "winner_seed": r.get("winner_seed"),
+            "loser_seed": r.get("loser_seed"),
+            "region": r.get("region"),
+        }
+        for r in all_results
+    ]
     print(f"[digest] {len(all_games)} total cumulative games in DB")
 
     for game in today_games:
@@ -389,14 +399,19 @@ async def _fetch_and_persist_today_games() -> tuple[list[dict], str]:
 
 
 async def _backfill_historical_games(today_date: datetime.date) -> None:
-    """Backfill missing historical dates between tournament start and today."""
+    """Backfill missing historical dates and re-fetch any dates lacking seed data."""
     tournament_start = datetime.date(2026, 3, 17)  # First Four
     existing_dates = db.get_game_result_dates()
+    seedless_dates = db.get_seedless_game_dates()
     d = tournament_start
     while d < today_date:
         date_str = d.strftime("%Y%m%d")
         if date_str not in existing_dates:
             print(f"[digest] Backfilling {date_str}")
+            historical_games = await espn.fetch_today_results(date_str)
+            db.save_game_results(date_str, historical_games)
+        elif date_str in seedless_dates:
+            print(f"[digest] Re-fetching {date_str} for seed data")
             historical_games = await espn.fetch_today_results(date_str)
             db.save_game_results(date_str, historical_games)
         d += datetime.timedelta(days=1)
@@ -494,9 +509,23 @@ def _compute_bracket_status(picks: dict, games: list[dict]) -> dict:
             picked_teams.update(_get_picks_for_tier(picks, t))
         if game["loser"] in picked_teams:
             furthest = _find_farthest_picked_round(game["loser"], picks) or tier
-            busts.append({"team": game["loser"], "pick": furthest, "lost": game["round"]})
+            busts.append(
+                {
+                    "team": game["loser"],
+                    "pick": furthest,
+                    "lost": game["round"],
+                    "seed": game.get("loser_seed"),
+                    "region": game.get("region"),
+                }
+            )
         if game["winner"] in picked_teams:
-            survivors.append({"team": game["winner"], "thru": game["round"]})
+            survivors.append(
+                {
+                    "team": game["winner"],
+                    "thru": game["round"],
+                    "seed": game.get("winner_seed"),
+                }
+            )
 
     # Deduplicate survivors — keep only the latest round per team
     seen = {}
