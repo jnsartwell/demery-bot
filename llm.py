@@ -211,7 +211,8 @@ async def generate_digest(
         content += f"\n\n{_fmt_round_progress(round_progress)}"
 
     content += (
-        "\n\nWrite a Demery-style daily bracket update — you're roasting friends "
+        "\n\nHARD LIMIT: Your entire response must be under 1500 characters. "
+        "Write a Demery-style daily bracket update — you're roasting friends "
         "in a Discord channel, not filing a report. "
         "Plain text, no markdown. Varied openers — never start the same way twice. "
         "CRITICAL: each person's Discord tag (e.g. <@123456>) must appear "
@@ -222,13 +223,12 @@ async def generate_digest(
         "Survivors get acknowledged. No-activity people get acknowledged. "
         "When multiple people share the same bust, roast them as a group — "
         "they walked into this together. "
-        "One tight zinger per person. Plus shared-bust callouts. Be Demery. "
-        "IMPORTANT: Your entire response must be under 2000 characters to fit in a single Discord message."
+        "Write a tight narrative that weaves everyone together — not a list of individual zingers. Be Demery."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model=HUMOR_MODEL,
-        max_tokens=500,
+        max_tokens=300,
         system=[
             {
                 "type": "text",
