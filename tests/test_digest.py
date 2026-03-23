@@ -45,6 +45,21 @@ class TestRunDigest:
         mock_channel.send.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_broadcasts_long_message_in_chunks(self, sample_picks, monkeypatch, mock_anthropic):
+        """A digest longer than 1990 chars is sent as multiple channel.send calls."""
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
+        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=[]))
+
+        long_message = "word " * 600  # ~3000 chars, forces at least 2 chunks
+        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value=long_message):
+            mock_channel = AsyncMock()
+            monkeypatch.setattr(bot.client, "get_channel", lambda cid: mock_channel if cid == 5001 else None)
+            await bot._run_digest(broadcast=True, guild_id=9001)
+
+        assert mock_channel.send.call_count >= 2
+
+    @pytest.mark.asyncio
     async def test_skips_guild_without_channel(self, monkeypatch, mock_anthropic):
         """Guild with no set_guild_channel is skipped."""
         result = await bot._run_digest(broadcast=False)
@@ -494,3 +509,57 @@ class TestSkipNonGameDays:
         with patch.object(bot, "_run_digest", new_callable=AsyncMock) as mock_digest:
             await bot.daily_digest_task()
             mock_digest.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _split_message
+# ---------------------------------------------------------------------------
+
+
+class TestSplitMessage:
+    def test_short_message_returned_as_single_chunk(self):
+        msg = "Hello world"
+        assert bot._split_message(msg) == [msg]
+
+    def test_message_at_limit_not_split(self):
+        msg = "x" * 1990
+        assert bot._split_message(msg) == [msg]
+
+    def test_long_message_splits_on_paragraph_break(self):
+        part1 = "a" * 1000
+        part2 = "b" * 1000
+        msg = part1 + "\n\n" + part2
+        chunks = bot._split_message(msg, limit=1100)
+        assert len(chunks) == 2
+        assert chunks[0] == part1
+        assert chunks[1].startswith("(cont) ")
+        assert "b" * 1000 in chunks[1]
+
+    def test_long_message_splits_on_newline_when_no_paragraph_break(self):
+        part1 = "a" * 1000
+        part2 = "b" * 1000
+        msg = part1 + "\n" + part2
+        chunks = bot._split_message(msg, limit=1100)
+        assert len(chunks) == 2
+        assert chunks[0] == part1
+        assert chunks[1].startswith("(cont) ")
+
+    def test_long_message_hard_cut_when_no_whitespace(self):
+        msg = "x" * 4000
+        chunks = bot._split_message(msg, limit=1990)
+        assert all(len(c) <= 1990 for c in chunks)
+        combined = "".join(c.replace("(cont) ", "") for c in chunks)
+        assert combined == msg
+
+    def test_continuation_chunks_prefixed(self):
+        msg = ("word " * 500).rstrip()  # ~2500 chars
+        chunks = bot._split_message(msg, limit=1990)
+        assert len(chunks) >= 2
+        for chunk in chunks[1:]:
+            assert chunk.startswith("(cont) ")
+
+    def test_all_chunks_within_limit(self):
+        msg = "paragraph\n\n" * 300
+        chunks = bot._split_message(msg, limit=1990)
+        for chunk in chunks:
+            assert len(chunk) <= 1990
