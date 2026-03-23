@@ -465,23 +465,26 @@ def _split_message(text: str, limit: int = 1990) -> list[str]:
     if len(text) <= limit:
         return [text]
 
+    CONT = "(cont) "
     chunks = []
     remaining = text
     while remaining:
         if len(remaining) <= limit:
             chunks.append(remaining)
             break
-        # Try paragraph break first, then newline
+        # Skip over the continuation prefix when searching for a split point
+        # so the space inside "(cont) " is never chosen as a separator.
+        search_start = len(CONT) if remaining.startswith(CONT) else 0
         for sep in ("\n\n", "\n", " "):
-            split_at = remaining.rfind(sep, 0, limit)
-            if split_at > 0:
+            split_at = remaining.rfind(sep, search_start, limit)
+            if split_at > search_start:
                 chunks.append(remaining[:split_at])
-                remaining = "(cont) " + remaining[split_at + len(sep):].lstrip()
+                remaining = CONT + remaining[split_at + len(sep) :].lstrip()
                 break
         else:
             # Hard cut
             chunks.append(remaining[:limit])
-            remaining = "(cont) " + remaining[limit:]
+            remaining = CONT + remaining[limit:]
 
     return chunks
 

@@ -2,6 +2,7 @@
 .env
 __pycache__/
 *.pyc
+.deps/
 CLAUDE.md
 session_summary.md
 docs/progress.md
