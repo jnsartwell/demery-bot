@@ -25,22 +25,25 @@ async def generate_diss(
     round_progress: dict | None = None,
 ) -> str:
     content = f"Taunt {target_mention}."
-    if bracket_data:
-        content += (
-            f"\nPicks: champ={bracket_data['champion']}"
-            f" | final={', '.join(bracket_data['championship_game'])}"
-            f" | F4={', '.join(bracket_data['final_four'])}"
-            f" | E8={', '.join(bracket_data['elite_eight'])}"
-            f" | S16={', '.join(bracket_data['sweet_16'])}"
-            f" | R32={', '.join(bracket_data['round_of_32'])}"
-        )
-    if results:
-        if results["busts"]:
-            content += f"\nBusts: {_fmt_busts(results['busts'])}"
-        if results["survivors"]:
-            content += f"\nAlive: {_fmt_survs(results['survivors'])}"
-    if round_progress:
-        content += f"\n{_fmt_round_progress(round_progress)}"
+    if bracket_data or results or round_progress:
+        data_lines = []
+        if bracket_data:
+            data_lines.append(
+                f"Picks: champ={bracket_data['champion']}"
+                f" | final={', '.join(bracket_data['championship_game'])}"
+                f" | F4={', '.join(bracket_data['final_four'])}"
+                f" | E8={', '.join(bracket_data['elite_eight'])}"
+                f" | S16={', '.join(bracket_data['sweet_16'])}"
+                f" | R32={', '.join(bracket_data['round_of_32'])}"
+            )
+        if results:
+            if results["busts"]:
+                data_lines.append(f"Busts: {_fmt_busts(results['busts'])}")
+            if results["survivors"]:
+                data_lines.append(f"Alive: {_fmt_survs(results['survivors'])}")
+        if round_progress:
+            data_lines.append(_fmt_round_progress(round_progress))
+        content += "\n<context>\n" + "\n".join(data_lines) + "\n</context>"
     if bracket_data or results:
         content += "\nMake the roast specific to their actual picks."
     response = await client.messages.create(
@@ -61,7 +64,7 @@ async def generate_diss(
 async def generate_submission_ack(mention: str, picks: dict) -> str:
     champion = picks.get("champion", "somebody")
     content = (
-        f"{mention} just submitted their bracket — they picked {champion} to win it all. "
+        f"<context>{mention} just submitted their bracket — they picked {champion} to win it all.</context>\n"
         "One-liner. You just got handed ammo and you know it. "
         "Make it funny — a real zinger, not just an acknowledgement. "
         "Stick the landing."
@@ -197,7 +200,7 @@ async def generate_digest(
     _log_digest_data(submitters)
     context = _determine_digest_context(submitters)
 
-    content = f"{context} Bracket status:\n\n" + "\n".join(lines)
+    content = "<context>\n" + f"{context} Bracket status:\n\n" + "\n".join(lines)
 
     if today_games:
         content += "\n\nToday's results: " + _fmt_games(today_games)
@@ -209,6 +212,8 @@ async def generate_digest(
 
     if round_progress:
         content += f"\n\n{_fmt_round_progress(round_progress)}"
+
+    content += "\n</context>"
 
     content += (
         "\n\nHARD LIMIT: Your entire response must be under 1000 characters. "
