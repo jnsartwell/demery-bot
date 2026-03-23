@@ -42,12 +42,7 @@ async def generate_diss(
     if round_progress:
         content += f"\n{_fmt_round_progress(round_progress)}"
     if bracket_data or results:
-        content += (
-            "\nMake the roast specific to their actual picks — the gap between"
-            " where they thought a team would go and where it actually went is the joke."
-            " Find the most absurd specific detail and build the entire punchline around it."
-            " If there's no punchline, rewrite. Never cite scores."
-        )
+        content += "\nMake the roast specific to their actual picks."
     response = await client.messages.create(
         model=HUMOR_MODEL,
         max_tokens=150,
@@ -227,8 +222,7 @@ async def generate_digest(
         "Survivors get acknowledged. No-activity people get acknowledged. "
         "When multiple people share the same bust, roast them as a group — "
         "they walked into this together. "
-        "One tight zinger per person. Plus shared-bust callouts. Every line must land. "
-        "Wit over volume. Zingers, not observations. Be Demery. "
+        "One tight zinger per person. Plus shared-bust callouts. Be Demery. "
         "IMPORTANT: Your entire response must be under 2000 characters to fit in a single Discord message."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
