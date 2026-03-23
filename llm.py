@@ -67,9 +67,8 @@ async def generate_submission_ack(mention: str, picks: dict) -> str:
     champion = picks.get("champion", "somebody")
     content = (
         f"{mention} just submitted their bracket — they picked {champion} to win it all. "
-        "One-liner. Mild intensity. You just got handed ammo and you know it. "
+        "One-liner. You just got handed ammo and you know it. "
         "Make it funny — a real zinger, not just an acknowledgement. "
-        "Find the specific angle on this champion pick that's either delusional, inspired, or both. "
         "Stick the landing."
     )
     response = await client.messages.create(
@@ -222,17 +221,14 @@ async def generate_digest(
         "Plain text, no markdown. Varied openers — never start the same way twice. "
         "CRITICAL: each person's Discord tag (e.g. <@123456>) must appear "
         "EXACTLY ONCE. Never repeat a tag. Never type out names. "
-        "Today's busts are the headline. For each bust, find the specific absurd detail — "
-        "how far they picked that team to go vs. where they actually got bounced — "
+        "Today's busts are the headline. For each bust, find the specific absurd detail "
         "and build a real punchline around it. Not an observation. A joke. "
         "Older busts are background damage, not the main event. "
-        "Survivors get grudging credit, delivered like you're disappointed they're still alive. "
-        "No-activity people get a backhanded acknowledgement — the silence is part of the roast. "
+        "Survivors get acknowledged. No-activity people get acknowledged. "
         "When multiple people share the same bust, roast them as a group — "
         "they walked into this together. "
         "Never cite actual scores or point totals. Use the outcome and the drama, not the numbers. "
-        "One tight zinger per person — a single raised eyebrow built around the funniest specific detail, "
-        "delivered like you almost feel bad about it. Plus shared-bust callouts. Every line must land. "
+        "One tight zinger per person. Plus shared-bust callouts. Every line must land. "
         "Wit over volume. Zingers, not observations. Be Demery. "
         "IMPORTANT: Your entire response must be under 2000 characters to fit in a single Discord message."
     )
