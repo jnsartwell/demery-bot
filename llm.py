@@ -45,10 +45,10 @@ async def generate_diss(
             data_lines.append(_fmt_round_progress(round_progress))
         content += "\n<data>\n" + "\n".join(data_lines) + "\n</data>"
     if bracket_data or results:
-        content += "\nMake the roast specific to their actual picks."
+        content += "\nMake the roast specific to their actual picks. Keep it to 2-4 sentences."
     response = await client.messages.create(
         model=HUMOR_MODEL,
-        max_tokens=150,
+        max_tokens=400,
         system=[
             {
                 "type": "text",
@@ -71,7 +71,7 @@ async def generate_submission_ack(mention: str, picks: dict) -> str:
     )
     response = await client.messages.create(
         model=HUMOR_MODEL,
-        max_tokens=80,
+        max_tokens=120,
         system=[
             {
                 "type": "text",
@@ -216,24 +216,22 @@ async def generate_digest(
     content += "\n</data>"
 
     content += (
-        "\n\nHARD LIMIT: Your entire response must be under 1000 characters. "
-        "Write a Demery-style daily bracket update — you're roasting friends "
+        "\n\nWrite a Demery-style daily bracket update — you're roasting friends "
         "in a Discord channel, not filing a report. "
         "Plain text, no markdown. Varied openers — never start the same way twice. "
         "CRITICAL: each person's Discord tag (e.g. <@123456>) must appear "
         "EXACTLY ONCE. Never repeat a tag. Never type out names. "
-        "Today's busts are the headline. For each bust, find the specific absurd detail "
-        "and build a real punchline around it. Not an observation. A joke. "
-        "Older busts are background damage, not the main event. "
-        "Survivors get acknowledged. No-activity people get acknowledged. "
+        "Every person gets roasted — no one gets off easy. "
+        "Spend the most material on today's biggest busts and the most absurd picks. "
         "When multiple people share the same bust, roast them as a group — "
         "they walked into this together. "
-        "Write a tight narrative that weaves everyone together. Be Demery."
+        "Write like you're telling a story, not reading a list. "
+        "Weave people and picks together into a flowing narrative. Be Demery."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model=HUMOR_MODEL,
-        max_tokens=1000,
+        max_tokens=1500,
         system=[
             {
                 "type": "text",
@@ -363,7 +361,7 @@ def _determine_digest_context(submitters: list[dict]) -> str:
     if today_quiet and not has_history:
         return "No games yet. Brackets untouched."
     if today_quiet and has_history:
-        return "No new games today. Recap bracket standings from prior damage."
+        return "No new results. Frame around the round that just finished, not the schedule."
     return "New results today. Focus on NEW, use ALL for overall context."
 
 

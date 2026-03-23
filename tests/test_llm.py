@@ -184,7 +184,7 @@ class TestGenerateDigest:
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "prior damage" in user_content.lower()
+        assert "round that just finished" in user_content.lower()
 
     @pytest.mark.asyncio
     async def test_includes_game_results_in_prompt(self, mock_anthropic):
