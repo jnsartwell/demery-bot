@@ -211,7 +211,7 @@ async def generate_digest(
         content += f"\n\n{_fmt_round_progress(round_progress)}"
 
     content += (
-        "\n\nHARD LIMIT: Your entire response must be under 1500 characters. "
+        "\n\nHARD LIMIT: Your entire response must be under 750 characters. "
         "Write a Demery-style daily bracket update — you're roasting friends "
         "in a Discord channel, not filing a report. "
         "Plain text, no markdown. Varied openers — never start the same way twice. "
@@ -228,7 +228,7 @@ async def generate_digest(
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model=HUMOR_MODEL,
-        max_tokens=1500,
+        max_tokens=750,
         system=[
             {
                 "type": "text",
