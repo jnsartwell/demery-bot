@@ -298,7 +298,10 @@ async def testdigest(interaction: discord.Interaction):
     try:
         message = await _run_digest(broadcast=False, guild_id=interaction.guild_id)
         if message:
-            await interaction.followup.send(f"Digest preview:\n{message}", ephemeral=True)
+            chunks = _split_message(message)
+            await interaction.followup.send(f"Digest preview:\n{chunks[0]}", ephemeral=True)
+            for chunk in chunks[1:]:
+                await interaction.followup.send(chunk, ephemeral=True)
         else:
             await interaction.followup.send(
                 "Nothing to post — no completed games today or no brackets on file.",
@@ -317,7 +320,10 @@ async def pushdigest(interaction: discord.Interaction):
     try:
         message = await _run_digest(guild_id=interaction.guild_id)
         if message:
-            await interaction.followup.send(f"Digest pushed to channel:\n{message}", ephemeral=True)
+            chunks = _split_message(message)
+            await interaction.followup.send(f"Digest pushed to channel:\n{chunks[0]}", ephemeral=True)
+            for chunk in chunks[1:]:
+                await interaction.followup.send(chunk, ephemeral=True)
         else:
             await interaction.followup.send(
                 "Nothing to post — no completed games today or no brackets on file.",
@@ -382,7 +388,8 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
         if broadcast:
             channel = client.get_channel(guild_channel["channel_id"])
             if channel:
-                await channel.send(message)
+                for chunk in _split_message(message):
+                    await channel.send(chunk)
         last_message = message
 
     return last_message
@@ -448,6 +455,35 @@ def _build_submitters_for_guild(guild_id: int, all_games: list[dict], today_game
 
 
 # --- message helpers ---
+
+
+def _split_message(text: str, limit: int = 1990) -> list[str]:
+    """Split text into chunks that fit within Discord's message limit.
+    Prefers splitting on paragraph breaks, falls back to newlines, then hard cuts.
+    Continuation chunks are prefixed with '(cont) '.
+    """
+    if len(text) <= limit:
+        return [text]
+
+    chunks = []
+    remaining = text
+    while remaining:
+        if len(remaining) <= limit:
+            chunks.append(remaining)
+            break
+        # Try paragraph break first, then newline
+        for sep in ("\n\n", "\n", " "):
+            split_at = remaining.rfind(sep, 0, limit)
+            if split_at > 0:
+                chunks.append(remaining[:split_at])
+                remaining = "(cont) " + remaining[split_at + len(sep):].lstrip()
+                break
+        else:
+            # Hard cut
+            chunks.append(remaining[:limit])
+            remaining = "(cont) " + remaining[limit:]
+
+    return chunks
 
 
 # --- guard helpers ---
