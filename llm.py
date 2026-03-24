@@ -1,4 +1,5 @@
 import base64
+import datetime
 import json
 import re
 
@@ -10,6 +11,7 @@ from constants import (
     PICKS_ROUND_KEYS,
     REQUIRED_PICKS_KEYS,
     SUPPORTED_IMAGE_FORMATS_LABEL,
+    TOURNAMENT_GAME_DATES,
 )
 from prompts import (
     NORMALIZE_TEAM_NAMES_PROMPT,
@@ -208,10 +210,18 @@ async def generate_digest(
             line += " | No busts yet"
         data_lines.append(line)
 
+    last_game = max(TOURNAMENT_GAME_DATES)
+    tournament_over = datetime.date.today() > datetime.datetime.strptime(last_game, "%Y%m%d").date()
+    if tournament_over:
+        tense = "The tournament is over — use past tense."
+    else:
+        tense = "The tournament is still going — use present tense. Brackets ARE a disaster, not WERE."
+
     content = (
         "Roast everyone's bracket in one continuous monologue. "
         "Vary your structure — don't open every roast the same way. "
         "Add paragraph breaks where a comedic pause would make sense. "
+        f"{tense} "
         "Mention each Discord tag exactly once. Stay under 2000 characters."
     )
     content += "\n\n<data>\n" + "\n".join(data_lines) + "\n</data>"
