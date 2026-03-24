@@ -31,7 +31,7 @@ async def generate_diss(
     bracket_data: dict | None = None,
     results: dict | None = None,
 ) -> str:
-    content = f"Roast {target_mention}'s bracket. Make it specific to their actual picks. 2-4 sentences."
+    content = f"Roast {target_mention}'s bracket picks with a creative zinger. 1-2 sentences max."
     if bracket_data or results:
         data_lines = []
         if bracket_data:
