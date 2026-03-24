@@ -1,5 +1,6 @@
 import datetime
 import os
+import random
 import re
 import time
 import traceback
@@ -451,6 +452,7 @@ def _build_submitters_for_guild(
                 "survivors": survivors,
             }
         )
+    random.shuffle(submitters)
     return submitters
 
 
