@@ -427,14 +427,36 @@ def _build_submitters_for_guild(guild_id: int, all_games: list[dict]) -> list[di
     for entry in guild_brackets:
         picks = entry["picks"]
         status = _compute_bracket_status(picks, all_games)
-        print(f"[digest]   {entry['display_name']}: {len(status['busts'])} busts")
+        survivors = _enrich_survivors(status["survivors"], picks)
+        print(f"[digest]   {entry['display_name']}: {len(status['busts'])} busts, {len(survivors)} alive")
         submitters.append(
             {
                 "mention": f"<@{entry['discord_user_id']}>",
                 "busts": status["busts"],
+                "survivors": survivors,
             }
         )
     return submitters
+
+
+def _enrich_survivors(survivors: list[dict], picks: dict) -> list[dict]:
+    """Add pick depth to survivors, filter cashed-out, sort by deepest pick first."""
+    enriched = []
+    for s in survivors:
+        farthest = _find_farthest_picked_round(s["team"], picks)
+        if not farthest:
+            continue
+        thru_tier = ROUND_NAME_TO_TIER.get(s["thru"])
+        if not thru_tier:
+            continue
+        farthest_idx = ROUND_TIER_ORDER.index(farthest)
+        thru_idx = ROUND_TIER_ORDER.index(thru_tier)
+        if farthest_idx <= thru_idx:
+            continue
+        s["farthest_pick"] = farthest
+        enriched.append(s)
+    enriched.sort(key=lambda s: ROUND_TIER_ORDER.index(s["farthest_pick"]), reverse=True)
+    return enriched
 
 
 # --- message helpers ---

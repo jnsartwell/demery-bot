@@ -11,6 +11,7 @@ from constants import (
     PICKS_ROUND_KEYS,
     REQUIRED_PICKS_KEYS,
     SUPPORTED_IMAGE_FORMATS_LABEL,
+    TIER_DISPLAY_NAMES,
     TOURNAMENT_GAME_DATES,
 )
 from prompts import (
@@ -191,7 +192,7 @@ async def generate_digest(
     yesterday_games: list[dict] | None = None,
 ) -> str:
     """
-    submitters: [{mention, busts: [{team, pick, lost}]}]
+    submitters: [{mention, busts: [...], survivors: [...]}]
     yesterday_games: [{winner, loser, round, winner_score, loser_score}]
     Returns a single message roasting everyone's bracket.
     """
@@ -204,11 +205,13 @@ async def generate_digest(
         data_lines.append(f"Yesterday's results: {games_str}")
     data_lines.append("")
     for s in submitters:
-        line = s["mention"]
+        bust_count = len(s["busts"])
+        alive_count = len(s.get("survivors", []))
+        line = s["mention"] + f" | {bust_count} busted / {alive_count} alive"
         if s["busts"]:
             line += " | Busts: " + _fmt_busts(s["busts"])
-        else:
-            line += " | No busts yet"
+        if s.get("survivors"):
+            line += " | Alive: " + _fmt_survs(s["survivors"])
         data_lines.append(line)
 
     last_game = max(TOURNAMENT_GAME_DATES)
@@ -220,6 +223,8 @@ async def generate_digest(
 
     content = (
         "Roast everyone's bracket in one continuous monologue. "
+        "Calibrate — fewer busts + more alive picks = doing well (grudging respect, light teasing); "
+        "more busts + fewer alive picks = full roast. Compare across people. "
         "Vary your structure — don't open every roast the same way. "
         "Add paragraph breaks where a comedic pause would make sense. "
         f"{tense} "
@@ -252,17 +257,17 @@ def _fmt_busts(busts: list[dict]) -> str:
     parts = []
     for b in busts:
         seed = f"({b['seed']}) " if b.get("seed") else ""
-        region = f" [{b['region']}]" if b.get("region") else ""
-        parts.append(f"{seed}{b['team']}{region} (pick={b['pick']}, lost={b['lost']})")
+        parts.append(f"{seed}{b['team']} (pick={b['pick']}, lost={b['lost']})")
     return "; ".join(parts)
 
 
 def _fmt_survs(survs: list[dict]) -> str:
-    """Format survivor list as compact semicolon-delimited string."""
+    """Format survivor list as compact semicolon-delimited string with pick depth."""
     parts = []
     for s in survs:
         seed = f"({s['seed']}) " if s.get("seed") else ""
-        parts.append(f"{seed}{s['team']} (thru={s['thru']})")
+        pick_label = TIER_DISPLAY_NAMES.get(s.get("farthest_pick", ""), s.get("farthest_pick", ""))
+        parts.append(f"{seed}{s['team']} {pick_label}-pick thru={s['thru']}")
     return "; ".join(parts)
 
 

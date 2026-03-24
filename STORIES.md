@@ -134,8 +134,19 @@ Acceptance criteria:
   status so the narrative focuses on what just happened while
   reflecting overall bracket health.
 - For each submitter: busted picks include "picked to reach X, lost
-  in Y" context; survivors include the round they're still alive
-  through.
+  in Y" context and seed; survivors include the round they're still
+  alive through, their seed, and how deep they were picked to go.
+- Survivors with no remaining upside (cashed-out picks where the
+  team's deepest picked round equals the round already survived
+  through) are excluded. Only picks with remaining potential are
+  shown.
+- Survivors are sorted by deepest pick first so the most valuable
+  surviving picks lead.
+- Each submitter's data includes a compact bust/alive count so the
+  LLM can gauge relative bracket health across all participants.
+  Someone with few busts and many survivors should be teased lightly
+  (or with grudging respect), not roasted as if their bracket is
+  destroyed.
 - Every bracket holder is mentioned every day — even those with no
   activity that day get a "somehow still intact" treatment.
 - If no games were played, the digest acknowledges the off-day.

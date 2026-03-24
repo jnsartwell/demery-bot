@@ -44,6 +44,15 @@ PICKS_ROUND_KEYS = [k for k in ROUND_TIER_ORDER if k != "champion"]
 
 REQUIRED_PICKS_KEYS = set(ROUND_TIER_ORDER)
 
+TIER_DISPLAY_NAMES = {
+    "round_of_32": "R32",
+    "sweet_16": "S16",
+    "elite_eight": "E8",
+    "final_four": "F4",
+    "championship_game": "Final",
+    "champion": "Champ",
+}
+
 # Supported image formats for bracket submission (must match Claude Vision API)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}

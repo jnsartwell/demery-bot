@@ -108,6 +108,86 @@ class TestRunDigest:
             assert "lost" in bust
 
     @pytest.mark.asyncio
+    async def test_survivors_passed_to_digest(self, sample_picks, monkeypatch, mock_anthropic):
+        """Survivors with remaining upside are included with pick depth."""
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
+        games = [
+            {"winner": "Duke Blue Devils", "loser": "Vermont Catamounts", "round": "1st Round"},
+            {"winner": "Saint Peter's Peacocks", "loser": "Kentucky Wildcats", "round": "1st Round"},
+        ]
+        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=games))
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
+            await bot._run_digest(broadcast=False, guild_id=9001)
+            submitters = mock_gen.call_args[0][0]
+            alice = submitters[0]
+            assert "survivors" in alice
+            survivor_teams = {s["team"] for s in alice["survivors"]}
+            assert "Duke Blue Devils" in survivor_teams
+            # Duke is picked as champion — should have farthest_pick set
+            duke = next(s for s in alice["survivors"] if s["team"] == "Duke Blue Devils")
+            assert duke["farthest_pick"] == "champion"
+            assert len(alice["busts"]) > 0  # Kentucky busted
+
+    @pytest.mark.asyncio
+    async def test_cashed_out_survivors_filtered(self, monkeypatch, mock_anthropic):
+        """Teams with no remaining upside are excluded from survivors."""
+        picks = {
+            "round_of_32": ["TeamA", "TeamB"],
+            "sweet_16": ["TeamB"],
+            "elite_eight": ["TeamB"],
+            "final_four": ["TeamB"],
+            "championship_game": ["TeamB"],
+            "champion": "TeamB",
+        }
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", picks)
+        games = [
+            {"winner": "TeamA", "loser": "X", "round": "1st Round"},
+            {"winner": "TeamB", "loser": "Y", "round": "1st Round"},
+        ]
+        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=games))
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
+            await bot._run_digest(broadcast=False, guild_id=9001)
+            submitters = mock_gen.call_args[0][0]
+            alice = submitters[0]
+            survivor_teams = {s["team"] for s in alice["survivors"]}
+            assert "TeamB" in survivor_teams  # has upside (champ pick)
+            assert "TeamA" not in survivor_teams  # cashed out (R32 only)
+
+    @pytest.mark.asyncio
+    async def test_survivors_sorted_by_deepest_pick(self, monkeypatch, mock_anthropic):
+        """Survivors are sorted by deepest pick first (most valuable leads)."""
+        picks = {
+            "round_of_32": ["TeamA", "TeamB"],
+            "sweet_16": ["TeamA", "TeamB"],
+            "elite_eight": ["TeamA"],
+            "final_four": [],
+            "championship_game": ["TeamB"],
+            "champion": "TeamB",
+        }
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", picks)
+        games = [
+            {"winner": "TeamA", "loser": "X", "round": "1st Round"},
+            {"winner": "TeamB", "loser": "Y", "round": "1st Round"},
+        ]
+        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=games))
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
+            await bot._run_digest(broadcast=False, guild_id=9001)
+            submitters = mock_gen.call_args[0][0]
+            alice = submitters[0]
+            # TeamB (championship_game pick) should come before TeamA (elite_eight pick)
+            assert alice["survivors"][0]["team"] == "TeamB"
+            assert alice["survivors"][1]["team"] == "TeamA"
+
+    @pytest.mark.asyncio
     async def test_no_games_empty_busts(self, sample_picks, monkeypatch, mock_anthropic):
         db.set_guild_channel(9001, 5001)
         db.upsert_bracket(1001, 9001, "Alice", sample_picks)
