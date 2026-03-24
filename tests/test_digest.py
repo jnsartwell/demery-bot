@@ -102,8 +102,9 @@ class TestRunDigest:
             await bot._run_digest(broadcast=False, guild_id=9001)
             submitters = mock_gen.call_args[0][0]
             alice = submitters[0]
-            assert len(alice["busts"]) > 0
-            bust = alice["busts"][0]
+            all_busts = alice["new_busts"] + alice["prior_busts"]
+            assert len(all_busts) > 0
+            bust = all_busts[0]
             assert "pick" in bust
             assert "lost" in bust
 
@@ -129,7 +130,53 @@ class TestRunDigest:
             # Duke is picked as champion — should have farthest_pick set
             duke = next(s for s in alice["survivors"] if s["team"] == "Duke Blue Devils")
             assert duke["farthest_pick"] == "champion"
-            assert len(alice["busts"]) > 0  # Kentucky busted
+            assert len(alice["new_busts"]) > 0  # Kentucky busted today
+
+    @pytest.mark.asyncio
+    async def test_busts_split_new_vs_prior(self, sample_picks, monkeypatch, mock_anthropic):
+        """Today's busts go into new_busts, earlier busts go into prior_busts."""
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
+        # Pre-populate a prior bust in DB
+        db.save_game_results(
+            "20260319", [{"winner": "Saint Peter's Peacocks", "loser": "Kentucky Wildcats", "round": "1st Round"}]
+        )
+        # Today: Gonzaga busts
+        today_games = [{"winner": "Some Team", "loser": "Gonzaga Bulldogs", "round": "2nd Round"}]
+        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=today_games))
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
+            await bot._run_digest(broadcast=False, guild_id=9001)
+            submitters = mock_gen.call_args[0][0]
+            alice = submitters[0]
+            new_teams = {b["team"] for b in alice["new_busts"]}
+            prior_teams = {b["team"] for b in alice["prior_busts"]}
+            assert "Gonzaga Bulldogs" in new_teams
+            assert "Kentucky Wildcats" in prior_teams
+
+    @pytest.mark.asyncio
+    async def test_busts_sorted_by_severity(self, sample_picks, monkeypatch, mock_anthropic):
+        """Busts are sorted by pick depth descending (deepest pick first)."""
+        db.set_guild_channel(9001, 5001)
+        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
+        # Vermont is R32-only pick, Kentucky is picked through S16
+        games = [
+            {"winner": "X", "loser": "Vermont Catamounts", "round": "1st Round"},
+            {"winner": "Saint Peter's Peacocks", "loser": "Kentucky Wildcats", "round": "1st Round"},
+        ]
+        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=games))
+        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
+
+        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
+            await bot._run_digest(broadcast=False, guild_id=9001)
+            submitters = mock_gen.call_args[0][0]
+            alice = submitters[0]
+            all_busts = alice["new_busts"] + alice["prior_busts"]
+            # Kentucky (picked for sweet_16) should come before Vermont (picked for round_of_32)
+            ky_idx = next(i for i, b in enumerate(all_busts) if b["team"] == "Kentucky Wildcats")
+            vt_idx = next(i for i, b in enumerate(all_busts) if b["team"] == "Vermont Catamounts")
+            assert ky_idx < vt_idx
 
     @pytest.mark.asyncio
     async def test_cashed_out_survivors_filtered(self, monkeypatch, mock_anthropic):
@@ -197,7 +244,8 @@ class TestRunDigest:
         with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
             await bot._run_digest(broadcast=False, guild_id=9001)
             submitters = mock_gen.call_args[0][0]
-            assert submitters[0]["busts"] == []
+            assert submitters[0]["new_busts"] == []
+            assert submitters[0]["prior_busts"] == []
 
     @pytest.mark.asyncio
     async def test_single_guild_filter(self, sample_picks, monkeypatch, mock_anthropic):
@@ -280,7 +328,8 @@ class TestCumulativeDigest:
             alice = submitters[0]
 
             # Cumulative busts include BOTH yesterday's and today's
-            bust_teams = {b["team"] for b in alice["busts"]}
+            all_busts = alice["new_busts"] + alice["prior_busts"]
+            bust_teams = {b["team"] for b in all_busts}
             assert "Kentucky Wildcats" in bust_teams
             assert "Gonzaga Bulldogs" in bust_teams
 

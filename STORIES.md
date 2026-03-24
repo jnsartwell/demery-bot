@@ -142,11 +142,17 @@ Acceptance criteria:
   shown.
 - Survivors are sorted by deepest pick first so the most valuable
   surviving picks lead.
-- Each submitter's data includes a compact bust/alive count so the
-  LLM can gauge relative bracket health across all participants.
-  Someone with few busts and many survivors should be teased lightly
-  (or with grudging respect), not roasted as if their bracket is
-  destroyed.
+- Busts are sorted by severity (deepest pick first) and split into
+  NEW (yesterday) and PRIOR (earlier days) with explicit labels.
+  The digest leads with fresh material from yesterday's games.
+- Each submitter's summary highlights the worst bust and best
+  surviving pick so the LLM can gauge severity at a glance.
+- The LLM calibrates by SEVERITY of busts, not just count — losing
+  a champion pick is devastating, losing R32 picks is minor.
+  Someone with few busts but a dead champion is in worse shape than
+  someone with many R32 busts but deep picks alive.
+- Seeds are included and used in responses when they make the joke
+  funnier (e.g. a 1-seed losing in R1 is inherently hilarious).
 - Every bracket holder is mentioned every day — even those with no
   activity that day get a "somehow still intact" treatment.
 - If no games were played, the digest acknowledges the off-day.

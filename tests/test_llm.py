@@ -132,8 +132,8 @@ class TestGenerateDigest:
     @pytest.mark.asyncio
     async def test_includes_all_submitters(self, mock_anthropic):
         submitters = [
-            {"mention": "<@1>", "busts": [], "survivors": []},
-            {"mention": "<@2>", "busts": [], "survivors": []},
+            {"mention": "<@1>", "new_busts": [], "prior_busts": [], "survivors": []},
+            {"mention": "<@2>", "new_busts": [], "prior_busts": [], "survivors": []},
         ]
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
@@ -142,19 +142,12 @@ class TestGenerateDigest:
         assert "<@2>" in user_content
 
     @pytest.mark.asyncio
-    async def test_includes_bust_data_in_prompt(self, mock_anthropic):
+    async def test_includes_new_bust_data_in_prompt(self, mock_anthropic):
         submitters = [
             {
                 "mention": "<@1>",
-                "busts": [
-                    {
-                        "team": "Kentucky Wildcats",
-                        "pick": "elite_eight",
-                        "lost": "1st Round",
-                        "seed": "4",
-                        "region": "East",
-                    }
-                ],
+                "new_busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round", "seed": "4"}],
+                "prior_busts": [],
                 "survivors": [],
             },
         ]
@@ -162,13 +155,31 @@ class TestGenerateDigest:
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Kentucky Wildcats" in user_content
+        assert "NEW:" in user_content
+
+    @pytest.mark.asyncio
+    async def test_includes_prior_bust_data_in_prompt(self, mock_anthropic):
+        submitters = [
+            {
+                "mention": "<@1>",
+                "new_busts": [],
+                "prior_busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round", "seed": "4"}],
+                "survivors": [],
+            },
+        ]
+        await llm.generate_digest(submitters)
+        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
+        user_content = call_kwargs["messages"][0]["content"]
+        assert "Kentucky Wildcats" in user_content
+        assert "PRIOR:" in user_content
 
     @pytest.mark.asyncio
     async def test_includes_survivor_data_in_prompt(self, mock_anthropic):
         submitters = [
             {
                 "mention": "<@1>",
-                "busts": [],
+                "new_busts": [],
+                "prior_busts": [],
                 "survivors": [
                     {"team": "Duke Blue Devils", "thru": "2nd Round", "seed": "1", "farthest_pick": "champion"}
                 ],
@@ -178,16 +189,17 @@ class TestGenerateDigest:
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Duke Blue Devils" in user_content
-        assert "Alive" in user_content
+        assert "Alive:" in user_content
         assert "Champ-pick" in user_content
 
     @pytest.mark.asyncio
-    async def test_includes_bust_alive_counts(self, mock_anthropic):
-        """Each submitter line includes a compact bust/alive count for relative context."""
+    async def test_summary_includes_severity_callouts(self, mock_anthropic):
+        """Summary line highlights worst bust and best survivor."""
         submitters = [
             {
                 "mention": "<@1>",
-                "busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round", "seed": "4"}],
+                "new_busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round", "seed": "4"}],
+                "prior_busts": [],
                 "survivors": [
                     {"team": "Duke Blue Devils", "thru": "1st Round", "seed": "1", "farthest_pick": "champion"},
                     {"team": "Kansas Jayhawks", "thru": "1st Round", "seed": "1", "farthest_pick": "final_four"},
@@ -197,11 +209,23 @@ class TestGenerateDigest:
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "1 busted / 2 alive" in user_content
+        assert "1 busted" in user_content
+        assert "worst: E8 pick" in user_content
+        assert "2 alive" in user_content
+        assert "best: Champ-pick" in user_content
+
+    @pytest.mark.asyncio
+    async def test_calibration_prompt_mentions_severity(self, mock_anthropic):
+        submitters = [{"mention": "<@1>", "new_busts": [], "prior_busts": [], "survivors": []}]
+        await llm.generate_digest(submitters)
+        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
+        user_content = call_kwargs["messages"][0]["content"]
+        assert "SEVERITY" in user_content
+        assert "seeds" in user_content.lower()
 
     @pytest.mark.asyncio
     async def test_includes_game_results_in_prompt(self, mock_anthropic):
-        submitters = [{"mention": "<@1>", "busts": [], "survivors": []}]
+        submitters = [{"mention": "<@1>", "new_busts": [], "prior_busts": [], "survivors": []}]
         yesterday_games = [
             {
                 "winner": "Duke Blue Devils",
@@ -220,7 +244,7 @@ class TestGenerateDigest:
 
     @pytest.mark.asyncio
     async def test_zero_busts_shows_count(self, mock_anthropic):
-        submitters = [{"mention": "<@1>", "busts": [], "survivors": []}]
+        submitters = [{"mention": "<@1>", "new_busts": [], "prior_busts": [], "survivors": []}]
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]

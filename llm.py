@@ -192,7 +192,7 @@ async def generate_digest(
     yesterday_games: list[dict] | None = None,
 ) -> str:
     """
-    submitters: [{mention, busts: [...], survivors: [...]}]
+    submitters: [{mention, new_busts: [...], prior_busts: [...], survivors: [...]}]
     yesterday_games: [{winner, loser, round, winner_score, loser_score}]
     Returns a single message roasting everyone's bracket.
     """
@@ -205,13 +205,18 @@ async def generate_digest(
         data_lines.append(f"Yesterday's results: {games_str}")
     data_lines.append("")
     for s in submitters:
-        bust_count = len(s["busts"])
-        alive_count = len(s.get("survivors", []))
-        line = s["mention"] + f" | {bust_count} busted / {alive_count} alive"
-        if s["busts"]:
-            line += " | Busts: " + _fmt_busts(s["busts"])
-        if s.get("survivors"):
-            line += " | Alive: " + _fmt_survs(s["survivors"])
+        new_busts = s.get("new_busts", [])
+        prior_busts = s.get("prior_busts", [])
+        survivors = s.get("survivors", [])
+        all_busts = new_busts + prior_busts
+        summary = _build_summary(all_busts, survivors)
+        line = s["mention"] + " | " + summary
+        if new_busts:
+            line += "\n  NEW: " + _fmt_busts(new_busts)
+        if prior_busts:
+            line += "\n  PRIOR: " + _fmt_busts(prior_busts)
+        if survivors:
+            line += "\n  Alive: " + _fmt_survs(survivors)
         data_lines.append(line)
 
     last_game = max(TOURNAMENT_GAME_DATES)
@@ -223,8 +228,11 @@ async def generate_digest(
 
     content = (
         "Roast everyone's bracket in one continuous monologue. "
-        "Calibrate — fewer busts + more alive picks = doing well (grudging respect, light teasing); "
-        "more busts + fewer alive picks = full roast. Compare across people. "
+        "Calibrate by SEVERITY, not count — losing a champion or Final Four pick is devastating; "
+        "losing R32 picks is minor. Lead with yesterday's NEW busts — that's the fresh material. "
+        "PRIOR busts are context, don't repeat the same jokes about them. "
+        "Use seeds when they make the joke funnier (a 1-seed losing in R1 is inherently hilarious). "
+        "Compare across people. "
         "Vary your structure — don't open every roast the same way. "
         "Add paragraph breaks where a comedic pause would make sense. "
         f"{tense} "
@@ -250,6 +258,21 @@ async def generate_digest(
 
 
 # --- helpers ---
+
+
+def _build_summary(all_busts: list[dict], survivors: list[dict]) -> str:
+    """Build a compact severity-aware summary line for one submitter."""
+    bust_count = len(all_busts)
+    alive_count = len(survivors)
+    summary = f"{bust_count} busted"
+    if all_busts:
+        worst = TIER_DISPLAY_NAMES.get(all_busts[0]["pick"], all_busts[0]["pick"])
+        summary += f" (worst: {worst} pick)"
+    summary += f" / {alive_count} alive"
+    if survivors:
+        best = TIER_DISPLAY_NAMES.get(survivors[0].get("farthest_pick", ""), "")
+        summary += f" (best: {best}-pick)"
+    return summary
 
 
 def _fmt_busts(busts: list[dict]) -> str:

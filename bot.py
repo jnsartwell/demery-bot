@@ -371,9 +371,10 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
         tier = ROUND_NAME_TO_TIER.get(game["round"])
         print(f"[digest]   Today: {game['winner']} beat {game['loser']} | round='{game['round']}' → tier={tier}")
 
+    today_losers = {g["loser"] for g in today_games}
     last_message = None
     for guild_channel in guild_channels:
-        submitters = _build_submitters_for_guild(guild_channel["guild_id"], all_games)
+        submitters = _build_submitters_for_guild(guild_channel["guild_id"], all_games, today_losers)
         if not submitters:
             print(f"[digest] Guild {guild_channel['guild_id']}: no submitters, skipping")
             continue
@@ -419,8 +420,11 @@ async def _backfill_historical_games(today_date: datetime.date) -> None:
         d += datetime.timedelta(days=1)
 
 
-def _build_submitters_for_guild(guild_id: int, all_games: list[dict]) -> list[dict]:
+def _build_submitters_for_guild(
+    guild_id: int, all_games: list[dict], today_losers: set[str] | None = None
+) -> list[dict]:
     """Load guild brackets and compute bracket status for each submitter."""
+    today_losers = today_losers or set()
     guild_brackets = db.get_guild_brackets(guild_id)
     print(f"[digest] Guild {guild_id}: {len(guild_brackets)} brackets on file")
     submitters = []
@@ -428,11 +432,22 @@ def _build_submitters_for_guild(guild_id: int, all_games: list[dict]) -> list[di
         picks = entry["picks"]
         status = _compute_bracket_status(picks, all_games)
         survivors = _enrich_survivors(status["survivors"], picks)
-        print(f"[digest]   {entry['display_name']}: {len(status['busts'])} busts, {len(survivors)} alive")
+        sorted_busts = sorted(
+            status["busts"],
+            key=lambda b: ROUND_TIER_ORDER.index(b["pick"]) if b["pick"] in ROUND_TIER_ORDER else -1,
+            reverse=True,
+        )
+        new_busts = [b for b in sorted_busts if b["team"] in today_losers]
+        prior_busts = [b for b in sorted_busts if b["team"] not in today_losers]
+        print(
+            f"[digest]   {entry['display_name']}: "
+            f"{len(new_busts)} new busts, {len(prior_busts)} prior busts, {len(survivors)} alive"
+        )
         submitters.append(
             {
                 "mention": f"<@{entry['discord_user_id']}>",
-                "busts": status["busts"],
+                "new_busts": new_busts,
+                "prior_busts": prior_busts,
                 "survivors": survivors,
             }
         )
