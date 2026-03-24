@@ -52,7 +52,6 @@ async def generate_diss(
     response = await client.messages.create(
         model=HUMOR_MODEL,
         max_tokens=400,
-        top_k=100,
         system=[
             {
                 "type": "text",
@@ -244,7 +243,6 @@ async def generate_digest(
     response = await client.messages.create(
         model=HUMOR_MODEL,
         max_tokens=1200,
-        top_k=200,
         system=[
             {
                 "type": "text",
