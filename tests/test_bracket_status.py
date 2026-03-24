@@ -1,12 +1,10 @@
 """
-Tests for _compute_bracket_status, _compute_round_progress, and _compute_shared_busts — covers:
+Tests for _compute_bracket_status — covers:
   DS-8: Round-to-tier mapping
   DS-9: Bust and survivor computation (including deduplication)
-  DS-11: Round progress computation
-  US-17: Cross-bracket shared busts
 """
 
-from bot import _compute_bracket_status, _compute_round_progress, _compute_shared_busts
+from bot import _compute_bracket_status
 from constants import ROUND_NAME_TO_TIER, ROUND_TIER_ORDER
 
 # ---------------------------------------------------------------------------
@@ -214,84 +212,3 @@ class TestComputeBracketStatus:
         assert len(result["survivors"]) == 2
         teams = {s["team"] for s in result["survivors"]}
         assert teams == {"Duke Blue Devils", "Kansas Jayhawks"}
-
-
-# ---------------------------------------------------------------------------
-# DS-11: Round progress computation
-# ---------------------------------------------------------------------------
-
-
-class TestComputeRoundProgress:
-    def test_round_in_progress(self):
-        """8 of 32 first-round games should show as in-progress."""
-        games = [{"winner": f"W{i}", "loser": f"L{i}", "round": "1st Round"} for i in range(8)]
-        progress = _compute_round_progress(games)
-        assert progress["1st Round"]["completed"] == 8
-        assert progress["1st Round"]["total"] == 32
-
-    def test_round_complete(self):
-        """All 32 first-round games should show as complete."""
-        games = [{"winner": f"W{i}", "loser": f"L{i}", "round": "1st Round"} for i in range(32)]
-        progress = _compute_round_progress(games)
-        assert progress["1st Round"]["completed"] == 32
-        assert progress["1st Round"]["total"] == 32
-
-    def test_multiple_rounds_mixed(self):
-        """1st round complete + 2nd round partial should both appear correctly."""
-        games = [{"winner": f"W{i}", "loser": f"L{i}", "round": "1st Round"} for i in range(32)]
-        games += [{"winner": f"W{i}", "loser": f"L{i}", "round": "2nd Round"} for i in range(8)]
-        progress = _compute_round_progress(games)
-        assert progress["1st Round"] == {"completed": 32, "total": 32}
-        assert progress["2nd Round"] == {"completed": 8, "total": 16}
-
-    def test_empty_games(self):
-        """No games should return empty dict."""
-        progress = _compute_round_progress([])
-        assert progress == {}
-
-    def test_unknown_round_excluded(self):
-        """Play-in / First Four games should not appear in progress."""
-        games = [{"winner": "A", "loser": "B", "round": "First Four"}]
-        progress = _compute_round_progress(games)
-        assert progress == {}
-
-
-# ---------------------------------------------------------------------------
-# US-17: _compute_shared_busts
-# ---------------------------------------------------------------------------
-
-
-class TestComputeSharedBusts:
-    def test_shared_bust_found(self):
-        submitters = [
-            {"mention": "<@1>", "busts": [{"team": "Kentucky Wildcats", "pick": "sweet_16", "lost": "1st Round"}]},
-            {"mention": "<@2>", "busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round"}]},
-        ]
-        shared = _compute_shared_busts(submitters)
-        assert len(shared) == 1
-        assert shared[0]["team"] == "Kentucky Wildcats"
-        assert "<@1>" in shared[0]["mentions"]
-        assert "<@2>" in shared[0]["mentions"]
-
-    def test_no_shared_busts(self):
-        submitters = [
-            {"mention": "<@1>", "busts": [{"team": "Duke Blue Devils", "pick": "sweet_16", "lost": "1st Round"}]},
-            {"mention": "<@2>", "busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round"}]},
-        ]
-        shared = _compute_shared_busts(submitters)
-        assert shared == []
-
-    def test_empty_busts(self):
-        submitters = [
-            {"mention": "<@1>", "busts": []},
-            {"mention": "<@2>", "busts": []},
-        ]
-        shared = _compute_shared_busts(submitters)
-        assert shared == []
-
-    def test_single_submitter_no_shared(self):
-        submitters = [
-            {"mention": "<@1>", "busts": [{"team": "Duke Blue Devils", "pick": "champion", "lost": "1st Round"}]},
-        ]
-        shared = _compute_shared_busts(submitters)
-        assert shared == []

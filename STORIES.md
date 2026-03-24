@@ -410,25 +410,6 @@ Acceptance criteria:
   games would be fetched under the wrong date.
 
 
-US-17  Digest cross-bracket comparisons
-----------------------------------------------------------------------
-As a USER, the daily digest calls out when multiple people share the
-same picks — especially shared busts — so I can see who rode the same
-sinking ship.
-
-Acceptance criteria:
-- The digest prompt receives cross-bracket data: which teams were
-  picked by multiple submitters and busted for all of them.
-- The LLM is steered to call out shared bad picks with group roasts
-  (e.g., "you both took that train to crazy town").
-- Shared survivors can get grudging group credit.
-- The digest also conveys a sense of relative bracket health (who's
-  getting wrecked vs. who's coasting) without presenting an explicit
-  numbered ranking or leaderboard.
-- No additional LLM API calls — cross-bracket data is computed in
-  Python and appended to the existing single digest prompt.
-
-
 US-18  Digest includes real game context
 ----------------------------------------------------------------------
 As a USER, the daily digest references what actually happened in
@@ -436,13 +417,9 @@ yesterday's games so the roasts feel grounded in reality, not just
 abstract pick data.
 
 Acceptance criteria:
-- Today's completed game results (winner, loser, scores) are included
-  in the digest prompt as a compact game summary.
+- Yesterday's completed game results (winner, loser, scores) are
+  included in the digest prompt as a compact game summary.
 - The LLM can reference upsets, blowouts, or close finishes to make
   roasts more specific and timely.
-- Game context is woven naturally into the narrative — not presented
-  as a standalone results list or box score.
 - Scores are extracted from the ESPN scoreboard API (already fetched);
   no additional API calls required.
-- No additional LLM API calls — game summary is appended to the
-  existing single digest prompt.

@@ -36,7 +36,7 @@ class TestPromptCaching:
 
     @pytest.mark.asyncio
     async def test_generate_digest_uses_cache_control(self, mock_anthropic):
-        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
+        submitters = [{"mention": "<@1>", "busts": []}]
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         system = call_kwargs["system"]
@@ -132,8 +132,8 @@ class TestGenerateDigest:
     @pytest.mark.asyncio
     async def test_includes_all_submitters(self, mock_anthropic):
         submitters = [
-            {"mention": "<@1>", "name": "Alice", "busts": [], "survivors": []},
-            {"mention": "<@2>", "name": "Bob", "busts": [], "survivors": []},
+            {"mention": "<@1>", "busts": []},
+            {"mention": "<@2>", "busts": []},
         ]
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
@@ -142,55 +142,22 @@ class TestGenerateDigest:
         assert "<@2>" in user_content
 
     @pytest.mark.asyncio
-    async def test_no_activity_context(self, mock_anthropic):
-        """When all submitters have no busts/survivors, context says no games."""
-        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
-        await llm.generate_digest(submitters)
-        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
-        user_content = call_kwargs["messages"][0]["content"]
-        assert "No games yet" in user_content
-
-    @pytest.mark.asyncio
-    async def test_activity_context_with_today(self, mock_anthropic):
-        """When there are today's busts, context focuses on today's events."""
+    async def test_includes_bust_data_in_prompt(self, mock_anthropic):
         submitters = [
             {
                 "mention": "<@1>",
-                "name": "A",
-                "busts": [{"team": "X", "pick": "sweet_16", "lost": "1st Round"}],
-                "survivors": [],
-                "today_busts": [{"team": "X", "pick": "sweet_16", "lost": "1st Round"}],
-                "today_survivors": [],
-            }
+                "busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round"}],
+            },
         ]
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "New results today" in user_content
-
-    @pytest.mark.asyncio
-    async def test_activity_context_cumulative_only(self, mock_anthropic):
-        """When there's cumulative history but no today activity, context acknowledges both."""
-        submitters = [
-            {
-                "mention": "<@1>",
-                "name": "A",
-                "busts": [{"team": "X", "pick": "sweet_16", "lost": "1st Round"}],
-                "survivors": [],
-                "today_busts": [],
-                "today_survivors": [],
-            }
-        ]
-        await llm.generate_digest(submitters)
-        call_kwargs = mock_anthropic.messages.create.call_args.kwargs
-        user_content = call_kwargs["messages"][0]["content"]
-        assert "most recent round" in user_content.lower()
+        assert "Kentucky Wildcats" in user_content
 
     @pytest.mark.asyncio
     async def test_includes_game_results_in_prompt(self, mock_anthropic):
-        """US-18: Today's game results appear in the digest prompt."""
-        submitters = [{"mention": "<@1>", "name": "A", "busts": [], "survivors": []}]
-        today_games = [
+        submitters = [{"mention": "<@1>", "busts": []}]
+        yesterday_games = [
             {
                 "winner": "Duke Blue Devils",
                 "loser": "Vermont Catamounts",
@@ -199,7 +166,7 @@ class TestGenerateDigest:
                 "loser_score": 55,
             },
         ]
-        await llm.generate_digest(submitters, today_games=today_games)
+        await llm.generate_digest(submitters, yesterday_games=yesterday_games)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
         assert "Duke Blue Devils" in user_content
@@ -207,28 +174,12 @@ class TestGenerateDigest:
         assert "55" in user_content
 
     @pytest.mark.asyncio
-    async def test_includes_shared_busts_in_prompt(self, mock_anthropic):
-        """US-17: Shared bust data appears in the digest prompt."""
-        submitters = [
-            {
-                "mention": "<@1>",
-                "name": "A",
-                "busts": [{"team": "X", "pick": "sweet_16", "lost": "1st Round"}],
-                "survivors": [],
-            },
-            {
-                "mention": "<@2>",
-                "name": "B",
-                "busts": [{"team": "X", "pick": "elite_eight", "lost": "1st Round"}],
-                "survivors": [],
-            },
-        ]
-        shared = [{"team": "X", "mentions": ["<@1>", "<@2>"]}]
-        await llm.generate_digest(submitters, shared_busts=shared)
+    async def test_no_busts_says_no_busts(self, mock_anthropic):
+        submitters = [{"mention": "<@1>", "busts": []}]
+        await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "<@1>" in user_content
-        assert "<@2>" in user_content
+        assert "No busts yet" in user_content
 
 
 # ---------------------------------------------------------------------------
@@ -463,113 +414,3 @@ class TestExtractAndValidatePicks:
     def test_unparseable_raises(self):
         with pytest.raises(ValueError, match="No JSON object found"):
             llm._extract_and_validate_picks("This is not JSON at all")
-
-
-class TestFormatSubmitterLines:
-    """Tests for _format_submitter_lines — data trimming and absurdity sorting."""
-
-    def test_today_busts_shown_in_full(self):
-        submitters = [
-            {
-                "mention": "<@1>",
-                "busts": [{"team": "Duke", "pick": "champion", "lost": "1st Round"}],
-                "survivors": [],
-                "today_busts": [{"team": "Duke", "pick": "champion", "lost": "1st Round"}],
-                "today_survivors": [],
-            }
-        ]
-        lines = llm._format_submitter_lines(submitters)
-        assert len(lines) == 1
-        assert "NEW BUSTS:" in lines[0]
-        assert "Duke" in lines[0]
-        # Today's bust should not also appear as a prior bust
-        assert "PRIOR BUSTS:" not in lines[0]
-
-    def test_older_busts_sorted_by_absurdity(self):
-        """Most absurd bust (biggest pick-vs-exit gap) should appear first."""
-        submitters = [
-            {
-                "mention": "<@1>",
-                "busts": [
-                    {"team": "SmallGap", "pick": "sweet_16", "lost": "1st Round"},
-                    {"team": "BigGap", "pick": "champion", "lost": "1st Round"},
-                    {"team": "MedGap", "pick": "final_four", "lost": "1st Round"},
-                ],
-                "survivors": [],
-                "today_busts": [],
-                "today_survivors": [],
-            }
-        ]
-        lines = llm._format_submitter_lines(submitters)
-        prior_idx = lines[0].index("PRIOR BUSTS:")
-        prior_section = lines[0][prior_idx:]
-        # BigGap (champion->1st round = gap 5) should come before MedGap (final_four->1st round = gap 3)
-        assert prior_section.index("BigGap") < prior_section.index("MedGap")
-        # SmallGap (gap 1) is cut by max_older=2
-        assert "SmallGap" not in prior_section
-
-    def test_older_busts_capped_with_count(self):
-        """Only max_older busts shown, rest summarized as count."""
-        busts = [{"team": f"Team{i}", "pick": "sweet_16", "lost": "1st Round"} for i in range(6)]
-        submitters = [
-            {
-                "mention": "<@1>",
-                "busts": busts,
-                "survivors": [],
-                "today_busts": [],
-                "today_survivors": [],
-            }
-        ]
-        lines = llm._format_submitter_lines(submitters, max_older=3)
-        assert "+3 more busts" in lines[0]
-
-    def test_today_busts_not_duplicated_in_prior(self):
-        """A bust that appears in today_busts should not also appear in PRIOR BUSTS."""
-        today_bust = {"team": "Duke", "pick": "champion", "lost": "1st Round"}
-        older_bust = {"team": "Arizona", "pick": "sweet_16", "lost": "1st Round"}
-        submitters = [
-            {
-                "mention": "<@1>",
-                "busts": [today_bust, older_bust],
-                "survivors": [],
-                "today_busts": [today_bust],
-                "today_survivors": [],
-            }
-        ]
-        lines = llm._format_submitter_lines(submitters)
-        # Duke should appear once (in NEW BUSTS), not again in PRIOR BUSTS
-        assert lines[0].count("Duke") == 1
-        # Arizona should appear in PRIOR BUSTS
-        assert "PRIOR BUSTS:" in lines[0]
-        assert "Arizona" in lines[0]
-
-    def test_today_survivors_not_duplicated_in_prior(self):
-        """A survivor in today_survivors should not also appear in PRIOR ALIVE."""
-        today_surv = {"team": "Duke", "thru": "2nd Round"}
-        older_surv = {"team": "Arizona", "thru": "1st Round"}
-        submitters = [
-            {
-                "mention": "<@1>",
-                "busts": [],
-                "survivors": [today_surv, older_surv],
-                "today_busts": [],
-                "today_survivors": [today_surv],
-            }
-        ]
-        lines = llm._format_submitter_lines(submitters)
-        assert lines[0].count("Duke") == 1
-        assert "PRIOR ALIVE:" in lines[0]
-        assert "Arizona" in lines[0]
-
-    def test_no_activity(self):
-        submitters = [
-            {
-                "mention": "<@1>",
-                "busts": [],
-                "survivors": [],
-                "today_busts": [],
-                "today_survivors": [],
-            }
-        ]
-        lines = llm._format_submitter_lines(submitters)
-        assert "No activity" in lines[0]

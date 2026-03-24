@@ -15,7 +15,6 @@ import espn
 from constants import (
     ALLOWED_IMAGE_EXTENSIONS,
     ALLOWED_IMAGE_TYPES,
-    EXPECTED_GAMES_PER_ROUND,
     ROUND_NAME_TO_TIER,
     ROUND_TIER_ORDER,
     SUPPORTED_IMAGE_FORMATS_LABEL,
@@ -131,13 +130,11 @@ async def diss(
     await interaction.response.defer()
     bracket_data = db.get_bracket(user.id, interaction.guild_id)
     results = None
-    round_progress = None
     if bracket_data:
         games = await espn.fetch_tournament_results()
         if games:
             results = _compute_bracket_status(bracket_data, games)
-            round_progress = _compute_round_progress(games)
-    diss_text = await generate_diss(user.mention, bracket_data, results, round_progress)
+    diss_text = await generate_diss(user.mention, bracket_data, results)
     await interaction.followup.send(diss_text)
 
 
@@ -376,15 +373,13 @@ async def _run_digest(broadcast: bool = True, guild_id: int | None = None) -> st
 
     last_message = None
     for guild_channel in guild_channels:
-        submitters = _build_submitters_for_guild(guild_channel["guild_id"], all_games, today_games)
+        submitters = _build_submitters_for_guild(guild_channel["guild_id"], all_games)
         if not submitters:
             print(f"[digest] Guild {guild_channel['guild_id']}: no submitters, skipping")
             continue
 
         print(f"[digest] Guild {guild_channel['guild_id']}: sending to LLM with {len(submitters)} submitters")
-        shared = _compute_shared_busts(submitters)
-        round_progress = _compute_round_progress(all_games)
-        message = await generate_digest(submitters, today_games, shared, round_progress)
+        message = await generate_digest(submitters, today_games)
         if broadcast:
             channel = client.get_channel(guild_channel["channel_id"])
             if channel:
@@ -424,31 +419,19 @@ async def _backfill_historical_games(today_date: datetime.date) -> None:
         d += datetime.timedelta(days=1)
 
 
-def _build_submitters_for_guild(guild_id: int, all_games: list[dict], today_games: list[dict]) -> list[dict]:
-    """Load guild brackets and compute cumulative + today-only bracket status for each submitter."""
+def _build_submitters_for_guild(guild_id: int, all_games: list[dict]) -> list[dict]:
+    """Load guild brackets and compute bracket status for each submitter."""
     guild_brackets = db.get_guild_brackets(guild_id)
     print(f"[digest] Guild {guild_id}: {len(guild_brackets)} brackets on file")
     submitters = []
     for entry in guild_brackets:
         picks = entry["picks"]
-        r32 = len(picks.get("round_of_32", []))
-        champ = picks.get("champion")
-        print(f"[digest]   User {entry['display_name']}: {r32} R32 picks, champion={champ}")
-        cumulative_status = _compute_bracket_status(picks, all_games)
-        today_status = _compute_bracket_status(picks, today_games)
-        print(
-            f"[digest]   → {entry['display_name']}: "
-            f"{len(cumulative_status['busts'])} total busts ({len(today_status['busts'])} today), "
-            f"{len(cumulative_status['survivors'])} total survivors ({len(today_status['survivors'])} today)"
-        )
+        status = _compute_bracket_status(picks, all_games)
+        print(f"[digest]   {entry['display_name']}: {len(status['busts'])} busts")
         submitters.append(
             {
                 "mention": f"<@{entry['discord_user_id']}>",
-                "name": entry["display_name"],
-                "busts": cumulative_status["busts"],
-                "survivors": cumulative_status["survivors"],
-                "today_busts": today_status["busts"],
-                "today_survivors": today_status["survivors"],
+                "busts": status["busts"],
             }
         )
     return submitters
@@ -592,25 +575,6 @@ def _find_farthest_picked_round(team: str, picks: dict) -> str | None:
         if team in _get_picks_for_tier(picks, tier):
             return tier
     return None
-
-
-def _compute_round_progress(games: list[dict]) -> dict:
-    """Returns {round_name: {completed: N, total: N}} for rounds with at least one game."""
-    counts = {}
-    for game in games:
-        round_name = game["round"]
-        if round_name in EXPECTED_GAMES_PER_ROUND:
-            counts[round_name] = counts.get(round_name, 0) + 1
-    return {rnd: {"completed": count, "total": EXPECTED_GAMES_PER_ROUND[rnd]} for rnd, count in counts.items()}
-
-
-def _compute_shared_busts(submitters: list[dict]) -> list[dict]:
-    """Find teams that busted for multiple submitters. Returns [{team, mentions: [mention, ...]}]."""
-    team_to_mentions = {}
-    for s in submitters:
-        for b in s["busts"]:
-            team_to_mentions.setdefault(b["team"], []).append(s["mention"])
-    return [{"team": team, "mentions": mentions} for team, mentions in team_to_mentions.items() if len(mentions) > 1]
 
 
 if __name__ == "__main__":

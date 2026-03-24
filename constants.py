@@ -40,15 +40,6 @@ TOURNAMENT_GAME_DATES = {
     "20260406",  # Championship
 }
 
-EXPECTED_GAMES_PER_ROUND = {
-    "1st Round": 32,
-    "2nd Round": 16,
-    "Sweet 16": 8,
-    "Elite 8": 4,
-    "Final Four": 2,
-    "National Championship": 1,
-}
-
 PICKS_ROUND_KEYS = [k for k in ROUND_TIER_ORDER if k != "champion"]
 
 REQUIRED_PICKS_KEYS = set(ROUND_TIER_ORDER)

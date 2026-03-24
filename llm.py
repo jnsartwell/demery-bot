@@ -9,8 +9,6 @@ from constants import (
     ALLOWED_IMAGE_TYPES,
     PICKS_ROUND_KEYS,
     REQUIRED_PICKS_KEYS,
-    ROUND_NAME_TO_TIER,
-    ROUND_TIER_ORDER,
     SUPPORTED_IMAGE_FORMATS_LABEL,
 )
 from prompts import (
@@ -29,10 +27,9 @@ async def generate_diss(
     target_mention: str,
     bracket_data: dict | None = None,
     results: dict | None = None,
-    round_progress: dict | None = None,
 ) -> str:
     content = f"Taunt {target_mention}."
-    if bracket_data or results or round_progress:
+    if bracket_data or results:
         data_lines = []
         if bracket_data:
             data_lines.append(
@@ -48,8 +45,6 @@ async def generate_diss(
                 data_lines.append(f"Busts: {_fmt_busts(results['busts'])}")
             if results["survivors"]:
                 data_lines.append(f"Alive: {_fmt_survs(results['survivors'])}")
-        if round_progress:
-            data_lines.append(_fmt_round_progress(round_progress))
         content += "\n<data>\n" + "\n".join(data_lines) + "\n</data>"
     if bracket_data or results:
         content += "\nMake the roast specific to their actual picks. Keep it to 2-4 sentences."
@@ -192,59 +187,38 @@ async def normalize_team_names(picks: dict, espn_names: list[str]) -> dict:
 
 async def generate_digest(
     submitters: list[dict],
-    today_games: list[dict] | None = None,
-    shared_busts: list[dict] | None = None,
-    round_progress: dict | None = None,
+    yesterday_games: list[dict] | None = None,
 ) -> str:
     """
-    submitters: [{mention, name, busts: [{team, pick, lost}],
-                  survivors: [{team, thru}]}]
-    today_games: [{winner, loser, round, winner_score, loser_score}]
-    shared_busts: [{team, mentions: [mention, ...]}]
-    Returns a single message roasting/praising everyone.
+    submitters: [{mention, busts: [{team, pick, lost}]}]
+    yesterday_games: [{winner, loser, round, winner_score, loser_score}]
+    Returns a single message roasting everyone's bracket.
     """
-    lines = _format_submitter_lines(submitters)
-    _log_digest_data(submitters)
-    context = _determine_digest_context(submitters)
-
-    content = f"<context>\n{context}\n</context>\n<data>\nBracket status:\n\n" + "\n".join(lines)
-
-    if today_games:
-        content += "\n\nToday's results: " + _fmt_games(today_games)
-
-    if shared_busts:
-        content += "\n\nShared busts (multiple people picked these losers): " + "; ".join(
-            f"{sb['team']} ({', '.join(sb['mentions'])})" for sb in shared_busts
+    data_lines = []
+    if yesterday_games:
+        games_str = "; ".join(
+            f"{g['winner']} {g.get('winner_score', '?')}-{g.get('loser_score', '?')} {g['loser']}"
+            for g in yesterday_games
         )
+        data_lines.append(f"Yesterday's results: {games_str}")
+    data_lines.append("")
+    for s in submitters:
+        line = s["mention"]
+        if s["busts"]:
+            line += " | Busts: " + _fmt_busts(s["busts"])
+        else:
+            line += " | No busts yet"
+        data_lines.append(line)
 
-    if round_progress:
-        content += f"\n\n{_fmt_round_progress(round_progress)}"
-
-    content += "\n</data>"
-
+    content = "<data>\n" + "\n".join(data_lines) + "\n</data>"
     content += (
-        "\n\nWrite a Demery-style daily bracket update — you're roasting friends "
-        "in a Discord channel, not filing a report. "
-        "Plain text, no markdown. Varied openers — never start the same way twice. "
-        "CRITICAL: each person's Discord tag (e.g. <@123456>) must appear "
-        "EXACTLY ONCE. Never repeat a tag. Never type out names. "
-        "Every person gets roasted — no one gets off easy. "
-        "For each person, pick the 1-2 most roast-worthy schools and commit to them. "
-        "Don't list every bust — roast the school itself. What kind of school is it? "
-        "What's funny about someone trusting them to win? That's where the joke lives. "
-        "When multiple people share the same bust, roast them as a group — "
-        "they walked into this together. "
-        "Write like you're telling a story, not reading a list. "
-        "Weave people and picks together into a flowing narrative. Be Demery. "
-        "90% of the digest should be about yesterday's games — what happened, who got burned. "
-        "10% overall bracket health. Don't rehash old busts that were already covered in prior digests. "
-        "Never repeat a word multiple times for emphasis. "
-        "HARD LIMIT: stay under 1200 characters total. Be punchy."
+        "\n\nRoast each person's bracket. 2-4 sentences per person. "
+        "Use each Discord tag exactly once. Stay under 2000 characters."
     )
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model=HUMOR_MODEL,
-        max_tokens=800,
+        max_tokens=1000,
         system=[
             {
                 "type": "text",
@@ -277,23 +251,6 @@ def _fmt_survs(survs: list[dict]) -> str:
     for s in survs:
         seed = f"({s['seed']}) " if s.get("seed") else ""
         parts.append(f"{seed}{s['team']} (thru={s['thru']})")
-    return "; ".join(parts)
-
-
-def _fmt_round_progress(round_progress: dict) -> str:
-    """Format round progress as a compact status line for the LLM."""
-    parts = []
-    for rnd, info in round_progress.items():
-        status = "COMPLETE" if info["completed"] >= info["total"] else "IN PROGRESS"
-        parts.append(f"{rnd} {status} ({info['completed']}/{info['total']})")
-    return "Round status: " + " | ".join(parts)
-
-
-def _fmt_games(games: list[dict]) -> str:
-    """Format game results as compact semicolon-delimited string with scores."""
-    parts = []
-    for g in games:
-        parts.append(f"{g['winner']} {g.get('winner_score', '?')}-{g.get('loser_score', '?')} {g['loser']}")
     return "; ".join(parts)
 
 
@@ -344,81 +301,3 @@ def _extract_and_validate_picks(raw: str) -> dict:
         raise ValueError(f"Bracket picks missing rounds: {missing}")
 
     return picks
-
-
-def _format_submitter_lines(submitters: list[dict], max_older: int = 2) -> list[str]:
-    """Build pipe-delimited status lines for each submitter.
-
-    Includes all of today's busts/survivors in full detail, plus up to
-    max_older older busts sorted by biggest pick-vs-exit gap (most absurd first).
-    If more exist, appends a count.
-    """
-    lines = []
-    for s in submitters:
-        parts = [s["mention"]]
-        today_busts = s.get("today_busts", [])
-        today_survs = s.get("today_survivors", [])
-        today_bust_teams = {b["team"] for b in today_busts}
-        today_surv_teams = {sv["team"] for sv in today_survs}
-        if today_busts:
-            parts.append(f"NEW BUSTS: {_fmt_busts(today_busts)}")
-        if today_survs:
-            parts.append(f"NEW ALIVE: {_fmt_survs(today_survs)}")
-        older_busts = [b for b in s["busts"] if b["team"] not in today_bust_teams]
-        if older_busts:
-            older_busts = sorted(older_busts, key=_bust_absurdity, reverse=True)
-            shown = older_busts[:max_older]
-            parts.append(f"PRIOR BUSTS: {_fmt_busts(shown)}")
-            if len(older_busts) > max_older:
-                parts.append(f"+{len(older_busts) - max_older} more busts")
-        older_survs = [sv for sv in s["survivors"] if sv["team"] not in today_surv_teams]
-        if older_survs:
-            shown = older_survs[:max_older]
-            parts.append(f"PRIOR ALIVE: {_fmt_survs(shown)}")
-            if len(older_survs) > max_older:
-                parts.append(f"+{len(older_survs) - max_older} more alive")
-        if not s["busts"] and not s["survivors"]:
-            parts.append("No activity")
-        lines.append(" | ".join(parts))
-    return lines
-
-
-def _bust_absurdity(bust: dict) -> int:
-    """Score a bust by the gap between where they were picked to go and where they lost.
-
-    Higher score = more absurd (e.g., champion pick lost in 1st round = 5).
-    """
-    pick_idx = ROUND_TIER_ORDER.index(bust["pick"]) if bust["pick"] in ROUND_TIER_ORDER else 0
-    lost_tier = ROUND_NAME_TO_TIER.get(bust["lost"])
-    lost_idx = ROUND_TIER_ORDER.index(lost_tier) if lost_tier in ROUND_TIER_ORDER else 0
-    return pick_idx - lost_idx
-
-
-def _determine_digest_context(submitters: list[dict]) -> str:
-    """Return the context sentence for the digest based on today's activity."""
-    today_quiet = all(not s.get("today_busts") and not s.get("today_survivors") for s in submitters)
-    has_history = any(s["busts"] or s["survivors"] for s in submitters)
-    if today_quiet and not has_history:
-        return "No games yet. Brackets untouched."
-    if today_quiet and has_history:
-        return "No new results. Recap where brackets stand after the most recent round."
-    return "New results today."
-
-
-def _log_digest_data(submitters: list[dict]) -> None:
-    """Print debug info about digest submitters."""
-    for s in submitters:
-        today_b = len(s.get("today_busts", []))
-        today_s = len(s.get("today_survivors", []))
-        print(
-            f"Digest data: {s['name']} — busts={len(s['busts'])} (today={today_b}) "
-            f"survivors={len(s['survivors'])} (today={today_s})"
-        )
-        for b in s["busts"]:
-            print(f"  BUST: {b}")
-        for sv in s["survivors"]:
-            print(f"  SURV: {sv}")
-
-    print(f"[digest-llm] Submitters: {len(submitters)}")
-    for s in submitters:
-        print(f"[digest-llm]   {s['name']}: {len(s['busts'])} busts, {len(s['survivors'])} survivors")

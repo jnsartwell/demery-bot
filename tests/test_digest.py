@@ -86,9 +86,9 @@ class TestRunDigest:
         with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="digest msg") as mock_gen:
             await bot._run_digest(broadcast=False, guild_id=9001)
             submitters = mock_gen.call_args[0][0]
-            names = {s["name"] for s in submitters}
-            assert "Alice" in names
-            assert "Bob" in names
+            mentions = {s["mention"] for s in submitters}
+            assert "<@1001>" in mentions
+            assert "<@2001>" in mentions
 
     @pytest.mark.asyncio
     async def test_bust_context_passed(self, sample_picks, monkeypatch, mock_anthropic):
@@ -108,23 +108,7 @@ class TestRunDigest:
             assert "lost" in bust
 
     @pytest.mark.asyncio
-    async def test_survivor_context_passed(self, sample_picks, monkeypatch, mock_anthropic):
-        db.set_guild_channel(9001, 5001)
-        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
-        games = [{"winner": "Duke Blue Devils", "loser": "Vermont Catamounts", "round": "1st Round"}]
-        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=games))
-        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
-
-        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
-            await bot._run_digest(broadcast=False, guild_id=9001)
-            submitters = mock_gen.call_args[0][0]
-            alice = submitters[0]
-            assert len(alice["survivors"]) > 0
-            surv = alice["survivors"][0]
-            assert "thru" in surv
-
-    @pytest.mark.asyncio
-    async def test_no_games_empty_busts_survivors(self, sample_picks, monkeypatch, mock_anthropic):
+    async def test_no_games_empty_busts(self, sample_picks, monkeypatch, mock_anthropic):
         db.set_guild_channel(9001, 5001)
         db.upsert_bracket(1001, 9001, "Alice", sample_picks)
         monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=[]))
@@ -134,7 +118,6 @@ class TestRunDigest:
             await bot._run_digest(broadcast=False, guild_id=9001)
             submitters = mock_gen.call_args[0][0]
             assert submitters[0]["busts"] == []
-            assert submitters[0]["survivors"] == []
 
     @pytest.mark.asyncio
     async def test_single_guild_filter(self, sample_picks, monkeypatch, mock_anthropic):
@@ -148,9 +131,9 @@ class TestRunDigest:
         with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
             await bot._run_digest(broadcast=False, guild_id=9001)
             submitters = mock_gen.call_args[0][0]
-            names = {s["name"] for s in submitters}
-            assert "Alice" in names
-            assert "Bob" not in names
+            mentions = {s["mention"] for s in submitters}
+            assert "<@1001>" in mentions
+            assert "<@2001>" not in mentions
 
     @pytest.mark.asyncio
     async def test_mentions_use_discord_tags(self, sample_picks, monkeypatch, mock_anthropic):
@@ -165,8 +148,8 @@ class TestRunDigest:
             assert submitters[0]["mention"] == "<@1001>"
 
     @pytest.mark.asyncio
-    async def test_today_games_passed_to_digest(self, sample_picks, monkeypatch, mock_anthropic):
-        """US-18: Today's game results are passed to generate_digest."""
+    async def test_yesterday_games_passed_to_digest(self, sample_picks, monkeypatch, mock_anthropic):
+        """Today's game results are passed to generate_digest as yesterday_games."""
         db.set_guild_channel(9001, 5001)
         db.upsert_bracket(1001, 9001, "Alice", sample_picks)
         games = [
@@ -183,30 +166,10 @@ class TestRunDigest:
 
         with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
             await bot._run_digest(broadcast=False, guild_id=9001)
-            today_games_arg = mock_gen.call_args[0][1]
-            assert len(today_games_arg) == 1
-            assert today_games_arg[0]["winner"] == "Duke Blue Devils"
-            assert today_games_arg[0]["winner_score"] == 82
-
-    @pytest.mark.asyncio
-    async def test_shared_busts_passed_to_digest(self, sample_picks, monkeypatch, mock_anthropic):
-        """US-17: Shared bust data is passed to generate_digest."""
-        db.set_guild_channel(9001, 5001)
-        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
-        db.upsert_bracket(2001, 9001, "Bob", sample_picks)
-        games = [{"winner": "Saint Peter's Peacocks", "loser": "Kentucky Wildcats", "round": "1st Round"}]
-        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=games))
-        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
-
-        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
-            await bot._run_digest(broadcast=False, guild_id=9001)
-            shared_arg = mock_gen.call_args[0][2]
-            # Both users have identical picks, so all busts are shared
-            assert len(shared_arg) >= 1
-            kentucky_shared = [s for s in shared_arg if s["team"] == "Kentucky Wildcats"]
-            assert len(kentucky_shared) == 1
-            assert "<@1001>" in kentucky_shared[0]["mentions"]
-            assert "<@2001>" in kentucky_shared[0]["mentions"]
+            yesterday_games_arg = mock_gen.call_args[0][1]
+            assert len(yesterday_games_arg) == 1
+            assert yesterday_games_arg[0]["winner"] == "Duke Blue Devils"
+            assert yesterday_games_arg[0]["winner_score"] == 82
 
 
 # ---------------------------------------------------------------------------
@@ -240,32 +203,6 @@ class TestCumulativeDigest:
             bust_teams = {b["team"] for b in alice["busts"]}
             assert "Kentucky Wildcats" in bust_teams
             assert "Gonzaga Bulldogs" in bust_teams
-
-    @pytest.mark.asyncio
-    async def test_digest_distinguishes_today_from_cumulative(self, sample_picks, monkeypatch, mock_anthropic):
-        """today_busts contains only today's new busts, not historical ones."""
-        db.set_guild_channel(9001, 5001)
-        db.upsert_bracket(1001, 9001, "Alice", sample_picks)
-
-        # Yesterday's bust already in DB
-        db.save_game_results(
-            "20260319", [{"winner": "Saint Peter's Peacocks", "loser": "Kentucky Wildcats", "round": "1st Round"}]
-        )
-
-        # Today: Gonzaga busts
-        today_games = [{"winner": "Some Team", "loser": "Gonzaga Bulldogs", "round": "2nd Round"}]
-        monkeypatch.setattr(espn, "fetch_today_results", AsyncMock(return_value=today_games))
-        monkeypatch.setattr(bot.client, "get_channel", lambda cid: AsyncMock())
-
-        with patch.object(bot, "generate_digest", new_callable=AsyncMock, return_value="msg") as mock_gen:
-            await bot._run_digest(broadcast=False, guild_id=9001)
-            submitters = mock_gen.call_args[0][0]
-            alice = submitters[0]
-
-            # Today's busts: only Gonzaga
-            today_bust_teams = {b["team"] for b in alice["today_busts"]}
-            assert "Gonzaga Bulldogs" in today_bust_teams
-            assert "Kentucky Wildcats" not in today_bust_teams
 
     @pytest.mark.asyncio
     async def test_digest_persists_today_results(self, sample_picks, monkeypatch, mock_anthropic):
