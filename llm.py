@@ -22,7 +22,7 @@ from prompts import (
 
 client = anthropic.AsyncAnthropic()
 
-HUMOR_MODEL = "claude-sonnet-4-6"
+HUMOR_MODEL = "claude-opus-4-6"
 OCR_MODEL = "claude-sonnet-4-6"
 
 
