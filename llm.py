@@ -212,11 +212,15 @@ async def generate_digest(
         summary = _build_summary(all_busts, survivors)
         line = s["mention"] + " | " + summary
         if new_busts:
-            line += "\n  NEW: " + _fmt_busts(new_busts)
+            line += "\n  NEW: " + _fmt_busts(new_busts[:3])
+            if len(new_busts) > 3:
+                line += f" +{len(new_busts) - 3} more"
         if prior_busts:
-            line += "\n  PRIOR: " + _fmt_busts(prior_busts)
+            line += f"\n  PRIOR: {len(prior_busts)} more"
         if survivors:
-            line += "\n  Alive: " + _fmt_survs(survivors)
+            line += "\n  Alive: " + _fmt_survs(survivors[:3])
+            if len(survivors) > 3:
+                line += f" +{len(survivors) - 3} more"
         data_lines.append(line)
 
     last_game = max(TOURNAMENT_GAME_DATES)
@@ -228,22 +232,19 @@ async def generate_digest(
 
     content = (
         "Roast everyone's bracket in one continuous monologue. "
+        f"{tense} "
         "Calibrate by SEVERITY, not count — losing a champion or Final Four pick is devastating; "
         "losing R32 picks is minor. Lead with yesterday's NEW busts — that's the fresh material. "
         "PRIOR busts are context, don't repeat the same jokes about them. "
         "Use seeds when they make the joke funnier (a 1-seed losing in R1 is inherently hilarious). "
-        "Compare across people. "
-        "Vary your structure — don't open every roast the same way. "
-        "Add paragraph breaks where a comedic pause would make sense. "
-        f"{tense} "
         "Mention each Discord tag exactly once. Stay under 2000 characters."
     )
     content += "\n\n<data>\n" + "\n".join(data_lines) + "\n</data>"
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model=HUMOR_MODEL,
-        max_tokens=1000,
-        top_k=100,
+        max_tokens=1200,
+        top_k=200,
         system=[
             {
                 "type": "text",
