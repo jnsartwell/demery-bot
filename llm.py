@@ -12,6 +12,7 @@ from constants import (
     SUPPORTED_IMAGE_FORMATS_LABEL,
 )
 from prompts import (
+    DIGEST_EXAMPLE,
     NORMALIZE_TEAM_NAMES_PROMPT,
     PARSE_BRACKET_IMAGE_PROMPT,
     SYSTEM_PROMPT,
@@ -28,7 +29,7 @@ async def generate_diss(
     bracket_data: dict | None = None,
     results: dict | None = None,
 ) -> str:
-    content = f"Taunt {target_mention}."
+    content = f"Roast {target_mention}'s bracket. Make it specific to their actual picks. 2-4 sentences."
     if bracket_data or results:
         data_lines = []
         if bracket_data:
@@ -45,9 +46,7 @@ async def generate_diss(
                 data_lines.append(f"Busts: {_fmt_busts(results['busts'])}")
             if results["survivors"]:
                 data_lines.append(f"Alive: {_fmt_survs(results['survivors'])}")
-        content += "\n<data>\n" + "\n".join(data_lines) + "\n</data>"
-    if bracket_data or results:
-        content += "\nMake the roast specific to their actual picks. Keep it to 2-4 sentences."
+        content += "\n\n<data>\n" + "\n".join(data_lines) + "\n</data>"
     response = await client.messages.create(
         model=HUMOR_MODEL,
         max_tokens=400,
@@ -66,10 +65,10 @@ async def generate_diss(
 async def generate_submission_ack(mention: str, picks: dict) -> str:
     champion = picks.get("champion", "somebody")
     content = (
-        f"<context>{mention} just submitted their bracket — they picked {champion} to win it all.</context>\n"
         "One-liner. You just got handed ammo and you know it. "
         "Make it funny — a real zinger, not just an acknowledgement. "
-        "Stick the landing."
+        "Stick the landing.\n\n"
+        f"<data>\n{mention} just submitted their bracket — they picked {champion} to win it all.\n</data>"
     )
     response = await client.messages.create(
         model=HUMOR_MODEL,
@@ -210,11 +209,14 @@ async def generate_digest(
             line += " | No busts yet"
         data_lines.append(line)
 
-    content = "<data>\n" + "\n".join(data_lines) + "\n</data>"
-    content += (
-        "\n\nRoast each person's bracket. 2-4 sentences per person. "
-        "Use each Discord tag exactly once. Stay under 2000 characters."
+    content = (
+        "Roast everyone's bracket in one continuous monologue. "
+        "Vary your structure — don't open every roast the same way. "
+        "Add paragraph breaks where a comedic pause would make sense. "
+        "Mention each Discord tag exactly once. Stay under 2000 characters."
     )
+    content += f"\n\n<example>\n{DIGEST_EXAMPLE}\n</example>"
+    content += "\n\n<data>\n" + "\n".join(data_lines) + "\n</data>"
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
         model=HUMOR_MODEL,
