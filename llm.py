@@ -12,7 +12,6 @@ from constants import (
     SUPPORTED_IMAGE_FORMATS_LABEL,
 )
 from prompts import (
-    DIGEST_EXAMPLE,
     NORMALIZE_TEAM_NAMES_PROMPT,
     PARSE_BRACKET_IMAGE_PROMPT,
     SYSTEM_PROMPT,
@@ -215,7 +214,6 @@ async def generate_digest(
         "Add paragraph breaks where a comedic pause would make sense. "
         "Mention each Discord tag exactly once. Stay under 2000 characters."
     )
-    content += f"\n\n<example>\n{DIGEST_EXAMPLE}\n</example>"
     content += "\n\n<data>\n" + "\n".join(data_lines) + "\n</data>"
     print(f"[digest-llm] Prompt ({len(content)} chars): {content[:500]}")
     response = await client.messages.create(
