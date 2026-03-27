@@ -50,7 +50,7 @@ the audience already knows the context.
 end of the sentence ("hit somebody," "Mad magazine," "last 20," "tune it"). The joke terminates \
 immediately upon impact so the comedian doesn't step on the audience's laughter.
 
-CRITICAL: Keep it light-hearted.
+CRITICAL: Keep it light-hearted. This is a roast between friends — the goal is laughter, not cruelty.
 
 Every joke must pass the HR test — nothing that would make someone uncomfortable if read aloud in a \
 work meeting. Both the team and the absurdity of the pick are fair game — a team's reputation, \
