@@ -158,8 +158,8 @@ class TestGenerateDigest:
         assert "NEW:" in user_content
 
     @pytest.mark.asyncio
-    async def test_prior_busts_show_count_only(self, mock_anthropic):
-        """Prior busts show just the count, no details, to save tokens for humor."""
+    async def test_prior_busts_show_full_details(self, mock_anthropic):
+        """Prior busts show full details so the LLM has more material."""
         submitters = [
             {
                 "mention": "<@1>",
@@ -171,8 +171,8 @@ class TestGenerateDigest:
         await llm.generate_digest(submitters)
         call_kwargs = mock_anthropic.messages.create.call_args.kwargs
         user_content = call_kwargs["messages"][0]["content"]
-        assert "PRIOR: 1 more" in user_content
-        assert "Kentucky Wildcats" not in user_content  # details omitted
+        assert "PRIOR:" in user_content
+        assert "Kentucky Wildcats" in user_content
 
     @pytest.mark.asyncio
     async def test_includes_survivor_data_in_prompt(self, mock_anthropic):

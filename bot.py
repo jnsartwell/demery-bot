@@ -16,6 +16,8 @@ import espn
 from constants import (
     ALLOWED_IMAGE_EXTENSIONS,
     ALLOWED_IMAGE_TYPES,
+    JOKE_STYLES,
+    ROAST_ANGLES,
     ROUND_NAME_TO_TIER,
     ROUND_TIER_ORDER,
     SUPPORTED_IMAGE_FORMATS_LABEL,
@@ -135,7 +137,13 @@ async def diss(
         games = await espn.fetch_tournament_results()
         if games:
             results = _compute_bracket_status(bracket_data, games)
-    diss_text = await generate_diss(user.mention, bracket_data, results)
+    diss_text = await generate_diss(
+        user.mention,
+        bracket_data,
+        results,
+        roast_angle=random.choice(ROAST_ANGLES),
+        joke_style=random.choice(JOKE_STYLES),
+    )
     await interaction.followup.send(diss_text)
 
 
@@ -450,6 +458,8 @@ def _build_submitters_for_guild(
                 "new_busts": new_busts,
                 "prior_busts": prior_busts,
                 "survivors": survivors,
+                "roast_angle": random.choice(ROAST_ANGLES),
+                "joke_style": random.choice(JOKE_STYLES),
             }
         )
     random.shuffle(submitters)
@@ -577,6 +587,8 @@ def _compute_bracket_status(picks: dict, games: list[dict]) -> dict:
                     "lost": game["round"],
                     "seed": game.get("loser_seed"),
                     "region": game.get("region"),
+                    "beaten_by": game["winner"],
+                    "beaten_by_seed": game.get("winner_seed"),
                 }
             )
         if game["winner"] in picked_teams:
