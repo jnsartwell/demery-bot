@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import datetime
 import json
@@ -192,11 +193,12 @@ async def normalize_team_names(picks: dict, espn_names: list[str]) -> dict:
     return normalized
 
 
-async def generate_digest(
+async def generate_digest_deprecated(
     submitters: list[dict],
     yesterday_games: list[dict] | None = None,
 ) -> str:
     """
+    DEPRECATED: single-monologue approach. Use generate_digest instead.
     submitters: [{mention, new_busts: [...], prior_busts: [...], survivors: [...]}]
     yesterday_games: [{winner, loser, round, winner_score, loser_score}]
     Returns a single message roasting everyone's bracket.
@@ -260,6 +262,31 @@ async def generate_digest(
     )
     print(f"[digest-llm] Response ({len(response.content[0].text)} chars): {response.content[0].text[:200]}")
     return response.content[0].text
+
+
+async def generate_digest(
+    submitters: list[dict],
+    yesterday_games: list[dict] | None = None,
+) -> str:
+    """
+    submitters: [{mention, new_busts: [...], prior_busts: [...], survivors: [...]}]
+    yesterday_games: unused, kept for API compatibility.
+    Runs one generate_diss per submitter in parallel and joins the results.
+    """
+
+    async def _diss_one(s: dict) -> str:
+        busts = s.get("new_busts", []) + s.get("prior_busts", [])
+        survivors = s.get("survivors", [])
+        results = {"busts": busts, "survivors": survivors} if (busts or survivors) else None
+        return await generate_diss(
+            target_mention=s["mention"],
+            results=results,
+            roast_angle=s.get("roast_angle"),
+            joke_style=s.get("joke_style"),
+        )
+
+    lines = await asyncio.gather(*[_diss_one(s) for s in submitters])
+    return "\n".join(lines)
 
 
 # --- helpers ---
