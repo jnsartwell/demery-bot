@@ -57,3 +57,19 @@ TIER_DISPLAY_NAMES = {
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 SUPPORTED_IMAGE_FORMATS_LABEL = "PNG, JPG, GIF, or WebP"
+
+ROAST_ANGLES = [
+    "focus on their survivors barely hanging on",
+    "focus on who knocked out their picks",
+    "focus on how early their best picks died",
+    "focus on the absurdity of who they trusted",
+    "compare their champion pick to reality",
+]
+
+JOKE_STYLES = [
+    "backhanded compliment",
+    "fake sympathy",
+    "sarcastic congratulations",
+    "historical comparison",
+    "rhetorical question",
+]

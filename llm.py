@@ -30,8 +30,14 @@ async def generate_diss(
     target_mention: str,
     bracket_data: dict | None = None,
     results: dict | None = None,
+    roast_angle: str | None = None,
+    joke_style: str | None = None,
 ) -> str:
     content = f"Roast {target_mention}'s bracket picks with a creative zinger. 1-2 sentences max."
+    if roast_angle:
+        content += f"\nANGLE: {roast_angle}"
+    if joke_style:
+        content += f"\nSTYLE: {joke_style}"
     if bracket_data or results:
         data_lines = []
         if bracket_data:
@@ -211,15 +217,15 @@ async def generate_digest(
         summary = _build_summary(all_busts, survivors)
         line = s["mention"] + " | " + summary
         if new_busts:
-            line += "\n  NEW: " + _fmt_busts(new_busts[:3])
-            if len(new_busts) > 3:
-                line += f" +{len(new_busts) - 3} more"
+            line += "\n  NEW: " + _fmt_busts(new_busts)
         if prior_busts:
-            line += f"\n  PRIOR: {len(prior_busts)} more"
+            line += "\n  PRIOR: " + _fmt_busts(prior_busts)
         if survivors:
-            line += "\n  Alive: " + _fmt_survs(survivors[:3])
-            if len(survivors) > 3:
-                line += f" +{len(survivors) - 3} more"
+            line += "\n  Alive: " + _fmt_survs(survivors)
+        if s.get("roast_angle"):
+            line += f"\n  ANGLE: {s['roast_angle']}"
+        if s.get("joke_style"):
+            line += f"\n  STYLE: {s['joke_style']}"
         data_lines.append(line)
 
     last_game = max(TOURNAMENT_GAME_DATES)
@@ -279,7 +285,11 @@ def _fmt_busts(busts: list[dict]) -> str:
     parts = []
     for b in busts:
         seed = f"({b['seed']}) " if b.get("seed") else ""
-        parts.append(f"{seed}{b['team']} (pick={b['pick']}, lost={b['lost']})")
+        beaten = ""
+        if b.get("beaten_by"):
+            by_seed = f"({b['beaten_by_seed']}) " if b.get("beaten_by_seed") else ""
+            beaten = f" → lost to {by_seed}{b['beaten_by']}"
+        parts.append(f"{seed}{b['team']}{beaten} (pick={b['pick']}, lost={b['lost']})")
     return "; ".join(parts)
 
 
