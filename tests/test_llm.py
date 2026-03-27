@@ -165,7 +165,8 @@ class TestGenerateDigest:
     #         {
     #             "mention": "<@1>",
     #             "new_busts": [],
-    #             "prior_busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight", "lost": "1st Round", "seed": "4"}],
+    #             "prior_busts": [{"team": "Kentucky Wildcats", "pick": "elite_eight",
+    #                              "lost": "1st Round", "seed": "4"}],
     #             "survivors": [],
     #         },
     #     ]
