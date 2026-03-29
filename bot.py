@@ -80,8 +80,8 @@ class DemeryBot(discord.Client):
                 f"text_channels_visible={len(guild.text_channels)}"
             )
         db.init_db()
-        if not daily_digest_task.is_running():
-            daily_digest_task.start()
+        # if not daily_digest_task.is_running():
+        #     daily_digest_task.start()
 
     async def on_error(self, event: str, *args, **kwargs):
         print(f"Unhandled error in event '{event}':")
